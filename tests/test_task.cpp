@@ -5,7 +5,72 @@
 
 using namespace std;
 
+#include <captainlog/utils.hpp>
 #include <captainlog/task.hpp>
+
+TEST_CASE("parse hh:mm and hh.mm time", "[parse_time]") {
+    {
+        std::string input = "9:5";
+        auto result = cl::utils::normalize_hh_mm_time(input);
+        REQUIRE(result.has_value());
+        REQUIRE(result.value() == "09:05");
+    }
+    {
+        std::string input = "9.5";
+        auto result = cl::utils::normalize_hh_mm_time(input);
+        REQUIRE(result.has_value());
+        REQUIRE(result.value() == "09:05");
+    }
+    {
+        std::string input = "9:50";
+        auto result = cl::utils::normalize_hh_mm_time(input);
+        REQUIRE(result.has_value());
+        REQUIRE(result.value() == "09:50");
+    }
+    {
+        std::string input = "19:50";
+        auto result = cl::utils::normalize_hh_mm_time(input);
+        REQUIRE(result.has_value());
+        REQUIRE(result.value() == "19:50");
+    }
+    {
+        std::string input = "19.50";
+        auto result = cl::utils::normalize_hh_mm_time(input);
+        REQUIRE(result.has_value());
+        REQUIRE(result.value() == "19:50");
+    }
+    {
+        std::string input = "09 50";
+        auto result = cl::utils::normalize_hh_mm_time(input);
+        REQUIRE(!result.has_value());
+    }
+}
+
+TEST_CASE("parse YYYY-MM-DD and YYYY.MM.DD time", "[parse_date]") {
+    {
+        std::string input = "2022-5-3";
+        auto result = cl::utils::normalize_yyyy_mm_dd_date(input);
+        REQUIRE(result.has_value());
+        REQUIRE(result.value() == "2022-05-03");
+    }
+    {
+        std::string input = "2022-4-27";
+        auto result = cl::utils::normalize_yyyy_mm_dd_date(input);
+        REQUIRE(result.has_value());
+        REQUIRE(result.value() == "2022-04-27");
+    }
+    {
+        std::string input = "2022.2.20";
+        auto result = cl::utils::normalize_yyyy_mm_dd_date(input);
+        REQUIRE(result.has_value());
+        REQUIRE(result.value() == "2022-02-20");
+    }
+    {
+        std::string input = "2022-a-20";
+        auto result = cl::utils::normalize_yyyy_mm_dd_date(input);
+        REQUIRE(!result.has_value());
+    }
+}
 
 TEST_CASE( "create valid task schedule", "[task_schedule]" ) {
     auto result = cl::TaskSchedule::create("2022-04-15 15:00:00", "2022-04-15 15:02:00");

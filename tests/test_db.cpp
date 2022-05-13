@@ -41,6 +41,24 @@ TEST_CASE_METHOD(DbTestsFixture, "open database in memory", "[db]") {
     REQUIRE(m_open_res.has_value());
 }
 
+TEST_CASE_METHOD(DbTestsFixture, "insert task", "[db]") {
+    REQUIRE(m_open_res.has_value());
+
+    auto schedule_result = cl::TaskSchedule::create("2022-04-15 15:00:00", "2022-04-15 15:02:30");
+    REQUIRE(schedule_result.has_value());
+
+    cl::Task task(*schedule_result, "MyProject", "code cleanup", "dev,refactoring", "my comment");
+    auto insert_res = m_db.insert(task);
+    REQUIRE(insert_res.has_value());
+
+    auto maybe_latest = m_db.find_latest();
+    REQUIRE(maybe_latest.has_value());
+
+    REQUIRE(maybe_latest->id() == 1);
+    REQUIRE(maybe_latest->start_str() == "2022-04-15 15:00:00");
+    REQUIRE(maybe_latest->tags() == std::set<std::string>{"dev", "refactoring"});
+}
+
 TEST_CASE_METHOD(DbTestsFixture, "import legacy CSV", "[db]") {
     REQUIRE(m_open_res.has_value());
 

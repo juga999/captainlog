@@ -3,6 +3,10 @@
 #include <string>
 #include <numeric>
 
+#include <captainlog/expected.hpp>
+
+using tl::expected;
+
 namespace cl::utils {
 
 const std::string WHITESPACE = " \n\r\t\f\v";
@@ -27,5 +31,10 @@ std::string join(const T& items, S separator) {
     return result;
 }
 
-}
+expected<std::string, std::string> normalize_hh_mm_time(const std::string& input);
 
+expected<std::string, std::string> normalize_yyyy_mm_dd_date(const std::string& input);
+
+expected<std::string, std::string> normalize_yyyy_mm_dd_hh_mm_date_time(const std::string& input);
+
+}

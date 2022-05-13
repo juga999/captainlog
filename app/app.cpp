@@ -163,9 +163,15 @@ static bool display_n_latest(cl::Db& db, const std::string& tail_arg)
 static bool delete_task(cl::Db& db, const std::string& delete_arg)
 {
     std::optional<cl::Task> maybe_task;
-    if (delete_arg.find_first_of("-:")!= std::string::npos) {
-        std::optional<cl::Task> maybe_from_date = db.find_at(delete_arg);
-        maybe_task.swap(maybe_from_date);
+    if (delete_arg.find_first_of("-:.")!= std::string::npos) {
+        auto normalized_result = cl::utils::normalize_yyyy_mm_dd_hh_mm_date_time(delete_arg);
+        if (normalized_result) {
+            std::optional<cl::Task> maybe_from_date = db.find_at(normalized_result.value());
+            maybe_task.swap(maybe_from_date);
+        } else {
+            std::cerr << normalized_result.error() << std::endl;
+            return false;
+        }
     } else {
         int id = std::strtol(delete_arg.c_str(), nullptr, 10);
         std::optional<cl::Task> maybe_from_id = db.find_from_id(id);
@@ -212,16 +218,22 @@ read_task_date(const std::string& prompt, const std::optional<std::string>& defa
     } else {
         msg = prompt;
     }
-    std::string value = prompt_for_input(msg);
+    auto value = prompt_for_input(msg);
     if (!value.empty()) {
+        auto normalized_result = cl::utils::normalize_yyyy_mm_dd_date(value);
+        if (!normalized_result) {
+            std::cerr << normalized_result.error() << std::endl;
+            return std::nullopt;
+        }
+        auto normalized_value = normalized_result.value();
         std::tm t = {};
-        std::istringstream iss(value);
+        std::istringstream iss(normalized_value);
         iss >> std::get_time(&t, cl::DATE_FORMAT.c_str());
         if (iss.fail()) {
             std::cerr << "Invalid date. Please enter a date like '2020-01-31'" << std::endl;
             return std::nullopt;
         } else {
-            return value;
+            return normalized_value;
         }
     } else {
         return default_date;
@@ -237,16 +249,22 @@ read_time(const std::string& prompt, const std::optional<std::string>& default_t
     } else {
         msg = prompt;
     }
-    std::string value = prompt_for_input(msg);
+    auto value = prompt_for_input(msg);
     if (!value.empty()) {
+        auto normalized_result = cl::utils::normalize_hh_mm_time(value);
+        if (!normalized_result) {
+            std::cerr << normalized_result.error() << std::endl;
+            return std::nullopt;
+        }
+        auto normalized_value = normalized_result.value();
         std::tm t = {};
-        std::istringstream iss(value);
+        std::istringstream iss(normalized_value);
         iss >> std::get_time(&t, cl::TIME_FORMAT.c_str());
         if (iss.fail()) {
-            std::cerr << "Invalid time. Please enter a time like '09:50'" << std::endl;
+            std::cerr << "Invalid time. Please enter a time like '9:50' or '17.30'" << std::endl;
             return std::nullopt;
         } else {
-            return value;
+            return normalized_value;
         }
     } else {
         return default_time;
@@ -511,6 +529,8 @@ int main(int argc, char* argv[])
         std::cerr << "ERROR: " << insert_res.error() << std::endl;
         ::exit(EXIT_FAILURE);
     }
+
+    std::cout << task << std::endl;
 
     return EXIT_SUCCESS;
 }
