@@ -6,9 +6,9 @@ project(
   DESCRIPTION "Tasks log application"
   LANGUAGES CXX)
 
-if ( NOT CMAKE_BUILD_TYPE )
-    message( "Build Type not set, defaulting to Debug..." )
-    set( CMAKE_BUILD_TYPE Debug )
+if(NOT CMAKE_BUILD_TYPE)
+  message("Build Type not set, defaulting to Debug...")
+  set(CMAKE_BUILD_TYPE Debug)
 endif()
 
 # Only do these if this is the main project, and not if it is included through add_subdirectory
@@ -34,6 +34,13 @@ FetchContent_Declare(
   URL https://github.com/nlohmann/json/releases/download/v3.10.5/json.tar.xz
 )
 FetchContent_MakeAvailable(json)
+
+execute_process(
+  COMMAND git log -1 --format=%h
+  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
+  OUTPUT_VARIABLE GIT_HASH
+  OUTPUT_STRIP_TRAILING_WHITESPACE)
+message("Git hash: ${GIT_HASH}")
 
 # The compiled library code is here
 add_subdirectory(lib)

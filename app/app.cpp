@@ -32,7 +32,13 @@ static json config_json;
 
 static void show_version()
 {
-    std::cout << APP_NAME << " version " << APP_VERSION << " (" << APP_BUILD_TYPE << ")" << "\n";
+    std::cout
+        << APP_NAME
+        << " version "
+        << APP_VERSION
+        << " (" << APP_BUILD_TYPE << ")"
+        << " [" << APP_GIT_HASH << "]"
+        << "\n";
     std::cout << "* SQLite version: " << sqlite3_libversion() << std::endl;
 }
 

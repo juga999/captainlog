@@ -1,6 +1,7 @@
 #define APP_NAME "@PROJECT_NAME@"
 #define APP_VERSION "@CaptainLog_VERSION_MAJOR@.@CaptainLog_VERSION_MINOR@.@CaptainLog_VERSION_PATCH@"
 #define APP_BUILD_TYPE "@CMAKE_BUILD_TYPE@"
+#define APP_GIT_HASH "@GIT_HASH@"
 
 constexpr bool is_debug_profile() {
     constexpr auto build_type = std::string_view("@CMAKE_BUILD_TYPE@");
