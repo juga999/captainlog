@@ -12,7 +12,6 @@
 #include <sqlite3.h>
 
 #include <event2/event.h>
-#include <event2/http.h>
 
 #include <nlohmann/json.hpp>
 
@@ -21,6 +20,7 @@
 #include <captainlog/utils.hpp>
 #include <captainlog/task.hpp>
 #include <captainlog/db.hpp>
+#include <captainlog/web.hpp>
 
 
 namespace fs = std::filesystem;
@@ -39,7 +39,8 @@ static void show_version()
         << " (" << APP_BUILD_TYPE << ")"
         << " [" << APP_GIT_HASH << "]"
         << "\n";
-    std::cout << "* SQLite version: " << sqlite3_libversion() << std::endl;
+    std::cout << "* SQLite version:   " << sqlite3_libversion() << std::endl;
+    std::cout << "* Libevent version: " << event_get_version() << std::endl;
 }
 
 static void show_help()
@@ -54,6 +55,7 @@ static void show_help()
     std::cout << "  --tail,-t <count>      " << " = Print the last <count> tasks.\n";
     std::cout << "  --delete,-d <YYYY-MM-DD HH:mm>|<id>"
               << " = Delete the task for the given date-time or the given id.\n";
+    std::cout << "  --web,-w <port>        " << " = Run as a web server on the given port.\n";
     std::cout << std::endl;
 }
 
@@ -174,7 +176,7 @@ static bool delete_task(cl::Db& db, const std::string& delete_arg)
         }
     } else {
         int id = std::strtol(delete_arg.c_str(), nullptr, 10);
-        std::optional<cl::Task> maybe_from_id = db.find_from_id(id);
+        auto maybe_from_id = db.find_from_id<cl::Task>(id);
         maybe_task.swap(maybe_from_id);
     }
 
@@ -285,6 +287,21 @@ static std::string build_projects_prompt(const std::vector<std::string>& project
     return cl::utils::join(entries, ", ");
 }
 
+static void start_web_server(cl::Db& db, const std::string web_arg)
+{
+    cl::WebServer web_server(db);
+
+    auto init_result = web_server.init_server();
+    if (!init_result) {
+        std::cerr << "An error occured during the server initialization: ";
+        std::cerr << init_result.error() << std::endl;
+        ::exit(EXIT_FAILURE);
+        return;
+    }
+
+    web_server.start();
+}
+
 int main(int argc, char* argv[])
 {
     const struct option longopts[] =
@@ -296,7 +313,8 @@ int main(int argc, char* argv[])
         {"export",  required_argument,  0, 'e'},
         {"resume",  required_argument,  0, 'r'},
         {"tail",    required_argument,  0, 't'},
-        {"delete",    required_argument,  0, 'd'},
+        {"delete",  required_argument,  0, 'd'},
+        {"web",     required_argument,  0, 'w'},
         {0,0,0,0},
     };
 
@@ -306,11 +324,12 @@ int main(int argc, char* argv[])
     std::string resume_arg;
     std::string tail_arg;
     std::string delete_arg;
+    std::string web_arg;
 
     int index;
     int iarg = 0;
     while (iarg != -1) {
-        iarg = getopt_long(argc, argv, "hvc:i:e:r:t:d:", longopts, &index);
+        iarg = getopt_long(argc, argv, "hvc:i:e:r:t:d:w:", longopts, &index);
         switch (iarg) {
             case 'h':
                 show_help();
@@ -337,6 +356,9 @@ int main(int argc, char* argv[])
                 break;
             case 'd':
                 delete_arg = optarg;
+                break;
+            case 'w':
+                web_arg = optarg;
                 break;
             case '?':
                 show_help();
@@ -378,6 +400,11 @@ int main(int argc, char* argv[])
             std::cerr << "Error: " << err << std::endl;
             ::exit(EXIT_FAILURE);
         });
+
+    if (!web_arg.empty()) {
+        start_web_server(db, web_arg);
+        ::exit(EXIT_SUCCESS);
+    }
 
     if (!import_arg.empty()) {
         if (import_legacy_csv(db, import_arg)) {
@@ -535,21 +562,5 @@ int main(int argc, char* argv[])
     return EXIT_SUCCESS;
 }
 
-int main_event() {
-    event_enable_debug_logging(EVENT_DBG_ALL);
 
-    struct event_config *cfg = event_config_new();
-    struct event_base *base = event_base_new_with_config(cfg);
-
-	event_config_free(cfg);
-	cfg = NULL;
-
-    struct evhttp *http = evhttp_new(base);
-
-    evhttp_free(http);
-
-    event_base_free(base);
-
-    return 0;
-}
 

@@ -6,6 +6,7 @@
 #include <thread>
 
 #include <captainlog/db.hpp>
+#include <captainlog/utils.hpp>
 
 using namespace std::chrono;
 namespace fs = std::filesystem;
@@ -17,26 +18,109 @@ namespace cl {
 
 static const char CSV_SEPARATOR = '|';
 
-template <void(*T)(sqlite3_stmt*)>
-struct StatementHandler
+template<typename R>
+static R row_from_statement(sqlite3_stmt* stmt);
+
+template<>
+Task row_from_statement(sqlite3_stmt* stmt)
 {
-    explicit StatementHandler(sqlite3_stmt* stmt):m_stmt(stmt) {}
+    int i = 0;
 
-    ~StatementHandler() { T(m_stmt); }
+    int id = sqlite3_column_int(stmt, i++);
 
-    sqlite3_stmt* stmt() const { return m_stmt; }
+    std::string task_start_str(reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++)));
+    std::string task_stop_str(reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++)));
+    std::string task_project(reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++)));
+    std::string task_description(reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++)));
+    std::string task_tags_str(reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++)));
+    std::string task_comment(reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++)));
+
+    return Task(
+        id,
+        {
+            TaskSchedule::create(task_start_str, task_stop_str).value(),
+            task_project,
+            task_description,
+            task_tags_str,
+            task_comment
+        });
+}
+
+template<>
+json row_from_statement(sqlite3_stmt* stmt)
+{
+    int i = 0;
+
+    json json_task;
+
+    json_task["id"] = sqlite3_column_int(stmt, i++);
+    json_task["start"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++));
+    json_task["stop"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++));
+    json_task["project"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++));
+    json_task["description"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++));
+
+    std::string task_tags_str(reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++)));
+    std::set<std::string> tags;
+    utils::split(task_tags_str, ',', tags);
+    json_task["tags"] = std::move(tags);
+    json_task["comment"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++));
+
+    return json_task;
+}
+
+template<class R, typename... As>
+struct ReusableStatementHandler
+{
+    using Tuple = typename QueryArgs<R, As...>::Tuple;
+
+    ReusableStatementHandler(sqlite3_stmt* stmt, const QueryArgs<R, As...>& query_args)
+        : m_stmt(stmt)
+    {
+        bind_args<0>(m_stmt, query_args.args());
+    }
+
+    ~ReusableStatementHandler()
+    {
+        if (m_stmt != nullptr) {
+            sqlite3_clear_bindings(m_stmt);
+            sqlite3_reset(m_stmt);
+        }
+    }
+
+    bool exec() { return sqlite3_step(m_stmt) == SQLITE_DONE; }
+
+    bool has_next() { return sqlite3_step(m_stmt) == SQLITE_ROW; }
+
+    R from_row() { return row_from_statement<R>(m_stmt); }
+
+    std::optional<R> maybe_from_row()
+    {
+        if (has_next()) {
+            return from_row();
+        } else {
+            return std::nullopt;
+        }
+    }
+
+    template <int N>
+    constexpr static void bind_args(sqlite3_stmt* stmt, const Tuple& tuple)
+    {
+        if constexpr(N < std::tuple_size_v<Tuple>) {
+            using Arg = std::tuple_element_t<N, Tuple>;
+            const auto& value = std::get<N>(tuple);
+            if constexpr(std::is_same<Arg, int>::value) {
+                sqlite3_bind_int(stmt, N+1, value);
+            } else if constexpr(std::is_same<Arg, std::string>::value) {
+                sqlite3_bind_text(stmt, N+1, value.c_str(), -1, NULL);
+            }
+            bind_args<N+1>(stmt, tuple);
+        }
+    }
 
     sqlite3_stmt* m_stmt;
 };
 
-auto statement_reset_method = [](sqlite3_stmt* stmt) {
-    if (stmt != nullptr) {
-        sqlite3_clear_bindings(stmt);
-        sqlite3_reset(stmt);
-    }
-};
-
-typedef StatementHandler<statement_reset_method> StatementResetHandler;
+struct NoResult {};
 
 enum Db::QueryKey : unsigned int
 {
@@ -176,13 +260,11 @@ expected<void, std::string> Db::delete_all()
     return expected<void, std::string>();
 }
 
-expected<void, std::string> Db::delete_from_id(int task_id)
+expected<void, std::string> Db::delete_from_id(const Task::TaskId& id)
 {
-    StatementResetHandler handler(m_statements[Db::DELETE_FROM_ID_QUERY]);
+    ReusableStatementHandler<NoResult, Task::TaskId> handler(m_statements[Db::DELETE_FROM_ID_QUERY], id);
 
-    sqlite3_bind_int(handler.stmt(), 1, task_id);
-    int res = sqlite3_step(handler.stmt());
-    if (res != SQLITE_DONE) {
+    if (!handler.exec()) {
         return make_unexpected(
             std::string("Failed to delete task: ").append(sqlite3_errmsg(m_db)));
     }
@@ -192,20 +274,17 @@ expected<void, std::string> Db::delete_from_id(int task_id)
 
 expected<void, std::string> Db::insert(const Task& task)
 {
-    StatementResetHandler handler(m_statements[Db::INSERT_QUERY]);
+    QueryArgs<NoResult, std::string, std::string, std::string, std::string, std::string, std::string> args(
+        task.start_str(),
+        task.stop_str(),
+        task.project(),
+        task.description(),
+        task.joined_tags(),
+        task.comment());
 
-    sqlite3_bind_text(handler.stmt(), 1, task.start_str().c_str(), -1, NULL);
-    sqlite3_bind_text(handler.stmt(), 2, task.stop_str().c_str(), -1, NULL);
-    sqlite3_bind_text(handler.stmt(), 3, task.project().c_str(), -1, NULL);
-    sqlite3_bind_text(handler.stmt(), 4, task.description().c_str(), -1, NULL);
+    ReusableStatementHandler handler(m_statements[Db::INSERT_QUERY], args);
 
-    std::string joined_tags = task.joined_tags();
-    sqlite3_bind_text(handler.stmt(), 5, joined_tags.c_str(), -1, NULL);
-
-    sqlite3_bind_text(handler.stmt(), 6, task.comment().c_str(), -1, NULL);
-
-    int res = sqlite3_step(handler.stmt());
-    if (res != SQLITE_DONE) {
+    if (!handler.exec()) {
         return make_unexpected(
             std::string("Failed to insert task: ").append(sqlite3_errmsg(m_db)));
     }
@@ -213,51 +292,30 @@ expected<void, std::string> Db::insert(const Task& task)
     return expected<void, std::string>();
 }
 
-Task Db::from_row(sqlite3_stmt* stmt)
+template<>
+std::optional<Task> Db::find_from_id(QueryArgs<Task, Task::TaskId>&& arg)
 {
-    int i = 0;
+    ReusableStatementHandler handler(m_statements[Db::FIND_FROM_ID_QUERY], arg);
 
-    int id = sqlite3_column_int(stmt, i++);
-
-    std::string task_start_str(reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++)));
-    std::string task_stop_str(reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++)));
-    std::string task_project(reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++)));
-    std::string task_description(reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++)));
-    std::string task_tags_str(reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++)));
-    std::string task_comment(reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++)));
-
-    return Task(
-        id,
-        {
-            TaskSchedule::create(task_start_str, task_stop_str).value(),
-            task_project,
-            task_description,
-            task_tags_str,
-            task_comment
-        });
+    return handler.maybe_from_row();
 }
 
-std::optional<Task> Db::find_from_id(int id)
+template<>
+std::optional<json> Db::find_from_id(QueryArgs<json, Task::TaskId>&& arg)
 {
-    StatementResetHandler handler(m_statements[Db::FIND_FROM_ID_QUERY]);
+    ReusableStatementHandler handler(m_statements[Db::FIND_FROM_ID_QUERY], arg);
 
-    sqlite3_bind_int(handler.stmt(), 1, id);
-    if (sqlite3_step(handler.stmt()) == SQLITE_ROW) {
-        return from_row(handler.stmt());
-    } else {
-        return std::nullopt;
-    }
+    return handler.maybe_from_row();
 }
 
 expected<void, std::string> Db::visit_all(std::function<bool(Task&&)> visitor)
 {
-    StatementResetHandler handler(m_statements[Db::SELECT_ALL_QUERY]);
+    QueryArgs<Task> no_arg;
+    ReusableStatementHandler handler(m_statements[Db::SELECT_ALL_QUERY], no_arg);
 
     bool step = true;
-    int step_res = sqlite3_step(handler.stmt());
-    while (step && step_res == SQLITE_ROW) {
-        step = visitor(from_row(handler.stmt()));
-        step_res = sqlite3_step(handler.stmt());
+    while (step && handler.has_next()) {
+        step = visitor(handler.from_row());
     }
 
     return expected<void, std::string>();
@@ -265,14 +323,10 @@ expected<void, std::string> Db::visit_all(std::function<bool(Task&&)> visitor)
 
 std::optional<Task> Db::find_latest()
 {
-    StatementResetHandler handler(m_statements[Db::FIND_LATEST_QUERY]);
+    QueryArgs<Task, int> arg(1);
+    ReusableStatementHandler handler(m_statements[Db::FIND_LATEST_QUERY], arg);
 
-    sqlite3_bind_int(handler.stmt(), 1, 1);
-    if (sqlite3_step(handler.stmt()) == SQLITE_ROW) {
-        return from_row(handler.stmt());
-    } else {
-        return std::nullopt;
-    }
+    return handler.maybe_from_row();
 }
 
 expected<void, std::string> Db::visit_n_latest(int count, std::function<bool(Task&&)> visitor)
@@ -281,15 +335,12 @@ expected<void, std::string> Db::visit_n_latest(int count, std::function<bool(Tas
         return make_unexpected("Invalid count: " + count);
     }
 
-    StatementResetHandler handler(m_statements[Db::FIND_LATEST_QUERY]);
-
-    sqlite3_bind_int(handler.stmt(), 1, count);
+    QueryArgs<Task, int> arg(count);
+    ReusableStatementHandler handler(m_statements[Db::FIND_LATEST_QUERY], arg);
 
     bool step = true;
-    int step_res = sqlite3_step(handler.stmt());
-    while (step && step_res == SQLITE_ROW) {
-        step = visitor(from_row(handler.stmt()));
-        step_res = sqlite3_step(handler.stmt());
+    while (step && handler.has_next()) {
+        step = visitor(handler.from_row());
     }
 
     return expected<void, std::string>();
@@ -297,43 +348,34 @@ expected<void, std::string> Db::visit_n_latest(int count, std::function<bool(Tas
 
 std::optional<Task> Db::find_latest_for_day(const std::string& y_m_d_str)
 {
-    StatementResetHandler handler(m_statements[Db::FIND_LATEST_FOR_DAY_QUERY]);
+    QueryArgs<Task, std::string> arg(y_m_d_str + "%");
 
-    std::string query_arg = y_m_d_str + "%";
-    sqlite3_bind_text(handler.stmt(), 1, query_arg.c_str(), -1, NULL);
-    if (sqlite3_step(handler.stmt()) == SQLITE_ROW) {
-        return from_row(handler.stmt());
-    } else {
-        return std::nullopt;
-    }
+    ReusableStatementHandler<Task, std::string> handler(
+        m_statements[Db::FIND_LATEST_FOR_DAY_QUERY], arg);
+
+    return handler.maybe_from_row();
 }
 
-std::optional<Task> Db::find_at(const std::string& y_m_d_H_M_str)
+std::optional<Task> Db::find_at(const std::string& y_m_d_hh_mm_str)
 {
-    StatementResetHandler handler(m_statements[Db::FIND_AT_QUERY]);
+    QueryArgs<Task, std::string> arg(y_m_d_hh_mm_str);
 
-    sqlite3_bind_text(handler.stmt(), 1, y_m_d_H_M_str.c_str(), -1, NULL);
-    if (sqlite3_step(handler.stmt()) == SQLITE_ROW) {
-        return from_row(handler.stmt());
-    } else {
-        return std::nullopt;
-    }
+    ReusableStatementHandler<Task, std::string> handler(
+        m_statements[Db::FIND_AT_QUERY], arg);
+
+    return handler.maybe_from_row();
 }
 
 expected<void, std::string> Db::visit_from_description(
         const std::string& partial_descr,
         std::function<bool(Task&&)> visitor)
 {
-    StatementResetHandler handler(m_statements[Db::FIND_FROM_DESCRIPTION_QUERY]);
-
-    std::string query_arg = "%" + partial_descr + "%";
-    sqlite3_bind_text(handler.stmt(), 1, query_arg.c_str(), -1, NULL);
+    QueryArgs<Task, std::string> arg("%" + partial_descr + "%");
+    ReusableStatementHandler handler(m_statements[Db::FIND_FROM_DESCRIPTION_QUERY], arg);
 
     bool step = true;
-    int step_res = sqlite3_step(handler.stmt());
-    while (step && step_res == SQLITE_ROW) {
-        step = visitor(from_row(handler.stmt()));
-        step_res = sqlite3_step(handler.stmt());
+    while (step && handler.has_next()) {
+        step = visitor(handler.from_row());
     }
 
     return expected<void, std::string>();

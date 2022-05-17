@@ -135,7 +135,7 @@ Task::Task(Task&& other)
 {
 }
 
-Task::Task(int id, Task&& other)
+Task::Task(TaskId id, Task&& other)
     : Task(std::move(other))
 {
     m_id = id;
@@ -143,11 +143,7 @@ Task::Task(int id, Task&& other)
 
 void Task::tags_from_string(const std::string& str)
 {
-    std::istringstream input(str);
-    std::string item;
-    while(std::getline(input, item, ',')) {
-        m_tags.insert(cl::utils::trim(item));
-    }
+    cl::utils::split(str, ',', m_tags);
 }
 
 std::string Task::joined_tags() const

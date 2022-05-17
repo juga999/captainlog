@@ -118,7 +118,7 @@ TEST_CASE_METHOD(DbTestsFixture, "find from id", "[db]") {
     auto import_res = import_legacy_csv(oss.str());
     REQUIRE(import_res.has_value());
 
-    auto maybe_task = m_db.find_from_id(2);
+    auto maybe_task = m_db.find_from_id<cl::Task>(2);
     REQUIRE(maybe_task.has_value());
 
     REQUIRE(maybe_task->id() == 2);
@@ -141,7 +141,7 @@ TEST_CASE_METHOD(DbTestsFixture, "find latest for day", "[db]") {
     auto import_res = import_legacy_csv(oss.str());
     REQUIRE(import_res.has_value());
 
-    auto maybe_latest = m_db.find_latest_for_day("2022-04-20");
+    auto maybe_latest = m_db.find_latest_for_day(std::string("2022-04-20"));
     REQUIRE(maybe_latest.has_value());
 
     REQUIRE(maybe_latest->project() == "my other project");
@@ -211,7 +211,7 @@ TEST_CASE_METHOD(DbTestsFixture, "find at date-time", "[db]") {
     auto import_res = import_legacy_csv(oss.str());
     REQUIRE(import_res.has_value());
 
-    auto maybe_task = m_db.find_at("2022-04-20 09:15");
+    auto maybe_task = m_db.find_at(std::string("2022-04-20 09:15"));
     REQUIRE(maybe_task.has_value());
 
     REQUIRE(maybe_task->project() == "my project");
@@ -219,7 +219,7 @@ TEST_CASE_METHOD(DbTestsFixture, "find at date-time", "[db]") {
     REQUIRE(maybe_task->comment() == "my comment");
     REQUIRE(maybe_task->tags() == std::set<std::string>{"preview","complex"});
 
-    auto none_task = m_db.find_at("2020-04-20 09:15");
+    auto none_task = m_db.find_at(std::string("2020-04-20 09:15"));
     REQUIRE(!none_task.has_value());
 }
 
@@ -234,12 +234,12 @@ TEST_CASE_METHOD(DbTestsFixture, "delete task", "[db]") {
     auto import_res = import_legacy_csv(oss.str());
     REQUIRE(import_res.has_value());
 
-    auto maybe_task =  m_db.find_at("2022-04-20 09:15");
+    auto maybe_task =  m_db.find_at(std::string("2022-04-20 09:15"));
     REQUIRE(maybe_task.has_value());
 
     auto delete_res = m_db.delete_from_id(1);
     REQUIRE(delete_res.has_value());
 
-    auto none_task =  m_db.find_at("2022-04-20 09:15");
+    auto none_task =  m_db.find_at(std::string("2022-04-20 09:15"));
     REQUIRE(!none_task.has_value());
 }

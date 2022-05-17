@@ -61,6 +61,8 @@ private:
 
 class Task {
 public:
+    typedef int TaskId;
+
     Task(const TaskSchedule& schedule,
         const std::string& project,
         const std::string& description,
@@ -69,9 +71,9 @@ public:
 
     Task(Task&&);
 
-    Task(int id, Task&&);
+    Task(TaskId id, Task&&);
 
-    int id() const { return m_id; }
+    TaskId id() const { return m_id; }
 
     const TaskSchedule& schedule() const { return m_schedule; }
 
@@ -85,6 +87,7 @@ public:
 
     const std::set<std::string> tags() const { return m_tags; }
     void tags_from_string(const std::string& str);
+
     std::string joined_tags() const;
 
     const std::string& comment() const { return m_comment; }
