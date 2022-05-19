@@ -243,3 +243,42 @@ TEST_CASE_METHOD(DbTestsFixture, "delete task", "[db]") {
     auto none_task =  m_db.find_at(std::string("2022-04-20 09:15"));
     REQUIRE(!none_task.has_value());
 }
+
+TEST_CASE_METHOD(DbTestsFixture, "update task from json", "[db]") {
+    REQUIRE(m_open_res.has_value());
+
+    ostringstream oss;
+    oss << "task_date|task_start|task_stop|task_description|task_project|task_tags|task_comment\n";
+    oss << "2022-04-20|09:00|10:30|my description|my project|preview,complex|my comment\n";
+
+    auto import_res = import_legacy_csv(oss.str());
+    REQUIRE(import_res.has_value());
+
+    auto maybe_task = m_db.find_from_id<cl::Task>(1);
+    REQUIRE(maybe_task.has_value());
+
+    json json_task{
+        {"id", 1},
+        {cl::Task::PROPERTY_START, "2022-04-21 09:15:00"},
+        {cl::Task::PROPERTY_STOP, "2022-04-21 10:20:00"},
+        {cl::Task::PROPERTY_PROJECT, "my other project"},
+        {cl::Task::PROPERTY_DESCRIPTION, "my real description"},
+        {cl::Task::PROPERTY_TAGS, {"simple"}},
+        {cl::Task::PROPERTY_COMMENT, "changed comment"}
+    };
+
+    auto update_res = m_db.update(json_task);
+    REQUIRE(update_res.has_value());
+
+    auto maybe_updated_task = m_db.find_from_id<cl::Task>(1);
+    REQUIRE(maybe_updated_task.has_value());
+
+    cl::Task expected_task(
+        cl::TaskSchedule::create("2022-04-21", "09:15", "10:20").value(),
+        "my other project",
+        "my real description",
+        "simple",
+        "changed comment"
+    );
+    REQUIRE(maybe_updated_task.value() == expected_task);
+}

@@ -63,6 +63,16 @@ class Task {
 public:
     typedef int TaskId;
 
+    static const std::string PROPERTY_ID;
+    static const std::string PROPERTY_START;
+    static const std::string PROPERTY_STOP;
+    static const std::string PROPERTY_PROJECT;
+    static const std::string PROPERTY_DESCRIPTION;
+    static const std::string PROPERTY_TAGS;
+    static const std::string PROPERTY_COMMENT;
+
+    static const std::set<std::string> REQUIRED_PROPERTIES;
+
     Task(const TaskSchedule& schedule,
         const std::string& project,
         const std::string& description,

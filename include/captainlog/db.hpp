@@ -47,6 +47,10 @@ public:
 
     expected<void, std::string> insert(const Task& task) CL_MUST_USE_RESULT;
 
+    expected<void, std::string> insert(const json& json_task) CL_MUST_USE_RESULT;
+
+    expected<void, std::string> update(const json& json_task) CL_MUST_USE_RESULT;
+
     expected<void, std::string> delete_from_id(const Task::TaskId&) CL_MUST_USE_RESULT;
 
     expected<void, std::string> delete_all() CL_MUST_USE_RESULT;
@@ -61,6 +65,11 @@ public:
     expected<void, std::string> visit_n_latest(int count, std::function<bool(Task&&)> visitor) CL_MUST_USE_RESULT;
 
     std::optional<Task> find_latest_for_day(const std::string& y_m_d_str) CL_MUST_USE_RESULT;
+
+    template<class T>
+    expected<void, std::string> visit_for_day(
+        const std::string& y_m_d_str,
+        std::function<bool(T&&)> visitor) CL_MUST_USE_RESULT;
 
     std::optional<Task> find_at(const std::string& y_m_d_hh_mm_str) CL_MUST_USE_RESULT;
 
@@ -82,6 +91,15 @@ private:
     Db(Db&&) = delete;
     Db& operator=(const Db&) = delete;
     Db& operator=(Db&&) = delete;
+
+    template<class R, typename... As>
+    expected<void, std::string> exec(QueryKey, const QueryArgs<R, As...>&);
+
+    template<class R, typename... As>
+    std::optional<R> maybe_find(QueryKey, const QueryArgs<R, As...>&);
+
+    template<class R, typename... As>
+    expected<void, std::string> do_visit(QueryKey, const QueryArgs<R, As...>&, std::function<bool(R&&)>);
 
     expected<void, std::string> exec_query(std::string&& query_str) CL_MUST_USE_RESULT;
     expected<sqlite3_stmt*, std::string> prepare_query(QueryKey key, std::string&& query_str) CL_MUST_USE_RESULT;

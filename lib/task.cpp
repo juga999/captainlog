@@ -13,6 +13,21 @@ using tl::make_unexpected;
 
 namespace cl {
 
+const std::string Task::PROPERTY_ID{"id"};
+const std::string Task::PROPERTY_START{"start"};
+const std::string Task::PROPERTY_STOP{"stop"};
+const std::string Task::PROPERTY_PROJECT{"project"};
+const std::string Task::PROPERTY_DESCRIPTION{"description"};
+const std::string Task::PROPERTY_TAGS{"tags"};
+const std::string Task::PROPERTY_COMMENT{"comment"};
+
+const std::set<std::string> Task::REQUIRED_PROPERTIES = {
+    Task::PROPERTY_START,
+    Task::PROPERTY_STOP,
+    Task::PROPERTY_PROJECT,
+    Task::PROPERTY_DESCRIPTION
+};
+
 const std::regex date_time_regexp(
     "(\\d+)-(\\d+)-(\\d+) (\\d+):(\\d+):(\\d+)",
     std::regex_constants::ECMAScript | std::regex_constants::icase);

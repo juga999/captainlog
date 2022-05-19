@@ -53,19 +53,53 @@ json row_from_statement(sqlite3_stmt* stmt)
 
     json json_task;
 
-    json_task["id"] = sqlite3_column_int(stmt, i++);
-    json_task["start"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++));
-    json_task["stop"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++));
-    json_task["project"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++));
-    json_task["description"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++));
+    json_task[Task::PROPERTY_ID] = sqlite3_column_int(stmt, i++);
+    json_task[Task::PROPERTY_START] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++));
+    json_task[Task::PROPERTY_STOP] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++));
+    json_task[Task::PROPERTY_PROJECT] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++));
+    json_task[Task::PROPERTY_DESCRIPTION] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++));
 
     std::string task_tags_str(reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++)));
     std::set<std::string> tags;
     utils::split(task_tags_str, ',', tags);
-    json_task["tags"] = std::move(tags);
-    json_task["comment"] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++));
+    json_task[Task::PROPERTY_TAGS] = std::move(tags);
+    json_task[Task::PROPERTY_COMMENT] = reinterpret_cast<const char*>(sqlite3_column_text(stmt, i++));
 
     return json_task;
+}
+
+expected<Task, std::string> task_from_json(const json& json_task)
+{
+    for (const auto& property : Task::REQUIRED_PROPERTIES) {
+        if (!json_task.contains(property)) {
+            return make_unexpected(std::string("Missing property: ") + property);
+        }
+    }
+
+    auto schedule_res = TaskSchedule::create(
+        json_task[Task::PROPERTY_START].get<std::string>(),
+        json_task[Task::PROPERTY_STOP].get<std::string>());
+    if (!schedule_res) {
+        return make_unexpected(schedule_res.error());
+    }
+
+    std::string project = json_task[Task::PROPERTY_PROJECT].get<std::string>();
+    std::string description = json_task[Task::PROPERTY_DESCRIPTION].get<std::string>();
+    std::string tags_str;
+    if (json_task.contains(Task::PROPERTY_TAGS)) {
+        tags_str = cl::utils::join(json_task[Task::PROPERTY_TAGS].get<std::set<std::string>>(), ',');
+    }
+    std::string comment;
+    if (json_task.contains(Task::PROPERTY_COMMENT)) {
+        comment = json_task[Task::PROPERTY_COMMENT].get<std::string>();
+    }
+
+    Task task_without_id(schedule_res.value(), project, description, tags_str, comment);
+    if (json_task.contains(Task::PROPERTY_ID)) {
+        return Task(json_task[Task::PROPERTY_ID].get<int>(), std::move(task_without_id));
+    } else {
+        return task_without_id;
+    }
 }
 
 template<class R, typename... As>
@@ -87,6 +121,9 @@ struct ReusableStatementHandler
         }
     }
 
+    ReusableStatementHandler(const ReusableStatementHandler&) = delete;
+    ReusableStatementHandler& operator=(const ReusableStatementHandler&) = delete;
+
     bool exec() { return sqlite3_step(m_stmt) == SQLITE_DONE; }
 
     bool has_next() { return sqlite3_step(m_stmt) == SQLITE_ROW; }
@@ -99,6 +136,14 @@ struct ReusableStatementHandler
             return from_row();
         } else {
             return std::nullopt;
+        }
+    }
+
+    void visit_rows(std::function<bool(R&&)> visitor)
+    {
+        bool step = true;
+        while (step && has_next()) {
+            step = visitor(from_row());
         }
     }
 
@@ -122,14 +167,51 @@ struct ReusableStatementHandler
 
 struct NoResult {};
 
+template<class R, typename... As>
+expected<void, std::string> Db::exec(QueryKey query_key, const QueryArgs<R, As...>& args)
+{
+    ReusableStatementHandler handler(m_statements[query_key], args);
+
+    if (!handler.exec()) {
+        return make_unexpected(
+            std::string("Failed to execute the statement: ").append(sqlite3_errmsg(m_db)));
+    }
+
+    return expected<void, std::string>();
+}
+
+template<class R, typename... As>
+expected<void, std::string> Db::do_visit(
+    QueryKey query_key, 
+    const QueryArgs<R, As...>& args, 
+    std::function<bool(R&&)> visitor)
+{
+    ReusableStatementHandler handler(m_statements[query_key], args);
+
+    handler.visit_rows(visitor);
+
+    return expected<void, std::string>();
+}
+
+template<class R, typename... As>
+std::optional<R> Db::maybe_find(QueryKey query_key, const QueryArgs<R, As...>& args)
+{
+    ReusableStatementHandler handler(m_statements[query_key], args);
+
+    return handler.maybe_from_row();
+}
+
+
 enum Db::QueryKey : unsigned int
 {
     INSERT_QUERY,
+    UPDATE_QUERY,
     DELETE_FROM_ID_QUERY,
     SELECT_ALL_QUERY,
     FIND_FROM_ID_QUERY,
     FIND_LATEST_QUERY,
     FIND_LATEST_FOR_DAY_QUERY,
+    FIND_FOR_DAY_QUERY,
     FIND_FROM_DESCRIPTION_QUERY,
     FIND_AT_QUERY
 };
@@ -215,6 +297,15 @@ expected<void, std::string> Db::init_db()
         return make_unexpected(res.error());
     }
 
+    if (auto res = prepare_query(Db::UPDATE_QUERY,
+            " UPDATE tasks SET "
+            " task_start = ?, task_stop = ?, "
+            " task_project = ?, task_description = ?, "
+            " task_tags = ?, task_comment = ? "
+            " WHERE task_id = ? "); !res) {
+        return make_unexpected(res.error());
+    }  
+
     if (auto res = prepare_query(Db::DELETE_FROM_ID_QUERY,
             " DELETE FROM tasks WHERE task_id = ? "); !res) {
         return make_unexpected(res.error());
@@ -236,6 +327,11 @@ expected<void, std::string> Db::init_db()
 
     if (auto res = prepare_task_select_query(Db::FIND_LATEST_FOR_DAY_QUERY,
             " WHERE task_stop LIKE ? ORDER BY DATETIME(task_stop) DESC LIMIT 1 "); !res) {
+        return make_unexpected(res.error());
+    }
+
+    if (auto res = prepare_task_select_query(Db::FIND_FOR_DAY_QUERY,
+            " WHERE task_stop LIKE ? ORDER BY DATETIME(task_stop) ASC "); !res) {
         return make_unexpected(res.error());
     }
 
@@ -262,14 +358,7 @@ expected<void, std::string> Db::delete_all()
 
 expected<void, std::string> Db::delete_from_id(const Task::TaskId& id)
 {
-    ReusableStatementHandler<NoResult, Task::TaskId> handler(m_statements[Db::DELETE_FROM_ID_QUERY], id);
-
-    if (!handler.exec()) {
-        return make_unexpected(
-            std::string("Failed to delete task: ").append(sqlite3_errmsg(m_db)));
-    }
-
-    return expected<void, std::string>();
+    return exec(Db::DELETE_FROM_ID_QUERY, QueryArgs<NoResult, Task::TaskId>(id));
 }
 
 expected<void, std::string> Db::insert(const Task& task)
@@ -282,51 +371,66 @@ expected<void, std::string> Db::insert(const Task& task)
         task.joined_tags(),
         task.comment());
 
-    ReusableStatementHandler handler(m_statements[Db::INSERT_QUERY], args);
+    return exec(Db::INSERT_QUERY, args);
+}
 
-    if (!handler.exec()) {
-        return make_unexpected(
-            std::string("Failed to insert task: ").append(sqlite3_errmsg(m_db)));
+expected<void, std::string> Db::insert(const json& json_task)
+{
+    auto task_res = task_from_json(json_task);
+    if (!task_res) {
+        return make_unexpected(task_res.error());
     }
 
-    return expected<void, std::string>();
+    QueryArgs<NoResult, std::string, std::string, std::string, std::string, std::string, std::string> args(
+        task_res.value().start_str(),
+        task_res.value().stop_str(),
+        task_res.value().project(),
+        task_res.value().description(),
+        task_res.value().joined_tags(),
+        task_res.value().comment());
+
+    return exec(Db::INSERT_QUERY, args);
+}
+
+expected<void, std::string> Db::update(const json& json_task)
+{
+    auto task_res = task_from_json(json_task);
+    if (!task_res) {
+        return make_unexpected(task_res.error());
+    }
+
+    QueryArgs<NoResult, std::string, std::string, std::string, std::string, std::string, std::string, int> args(
+        task_res.value().start_str(),
+        task_res.value().stop_str(),
+        task_res.value().project(),
+        task_res.value().description(),
+        task_res.value().joined_tags(),
+        task_res.value().comment(),
+        task_res.value().id());
+
+    return exec(Db::UPDATE_QUERY, args);
 }
 
 template<>
 std::optional<Task> Db::find_from_id(QueryArgs<Task, Task::TaskId>&& arg)
 {
-    ReusableStatementHandler handler(m_statements[Db::FIND_FROM_ID_QUERY], arg);
-
-    return handler.maybe_from_row();
+    return maybe_find(Db::FIND_FROM_ID_QUERY, arg);
 }
 
 template<>
 std::optional<json> Db::find_from_id(QueryArgs<json, Task::TaskId>&& arg)
 {
-    ReusableStatementHandler handler(m_statements[Db::FIND_FROM_ID_QUERY], arg);
-
-    return handler.maybe_from_row();
+    return maybe_find(Db::FIND_FROM_ID_QUERY, arg);
 }
 
 expected<void, std::string> Db::visit_all(std::function<bool(Task&&)> visitor)
 {
-    QueryArgs<Task> no_arg;
-    ReusableStatementHandler handler(m_statements[Db::SELECT_ALL_QUERY], no_arg);
-
-    bool step = true;
-    while (step && handler.has_next()) {
-        step = visitor(handler.from_row());
-    }
-
-    return expected<void, std::string>();
+    return do_visit(Db::SELECT_ALL_QUERY, QueryArgs<Task>(), visitor);
 }
 
 std::optional<Task> Db::find_latest()
 {
-    QueryArgs<Task, int> arg(1);
-    ReusableStatementHandler handler(m_statements[Db::FIND_LATEST_QUERY], arg);
-
-    return handler.maybe_from_row();
+    return maybe_find(Db::FIND_LATEST_QUERY, QueryArgs<Task, int>(1));
 }
 
 expected<void, std::string> Db::visit_n_latest(int count, std::function<bool(Task&&)> visitor)
@@ -335,50 +439,40 @@ expected<void, std::string> Db::visit_n_latest(int count, std::function<bool(Tas
         return make_unexpected("Invalid count: " + count);
     }
 
-    QueryArgs<Task, int> arg(count);
-    ReusableStatementHandler handler(m_statements[Db::FIND_LATEST_QUERY], arg);
-
-    bool step = true;
-    while (step && handler.has_next()) {
-        step = visitor(handler.from_row());
-    }
-
-    return expected<void, std::string>();
+    return do_visit(Db::FIND_LATEST_QUERY, QueryArgs<Task, int>(count), visitor);
 }
 
 std::optional<Task> Db::find_latest_for_day(const std::string& y_m_d_str)
 {
-    QueryArgs<Task, std::string> arg(y_m_d_str + "%");
+    return maybe_find(Db::FIND_LATEST_FOR_DAY_QUERY, QueryArgs<Task, std::string>(y_m_d_str + "%"));
+}
 
-    ReusableStatementHandler<Task, std::string> handler(
-        m_statements[Db::FIND_LATEST_FOR_DAY_QUERY], arg);
+template<>
+expected<void, std::string> Db::visit_for_day(
+    const std::string& y_m_d_str,
+    std::function<bool(Task&&)> visitor)
+{
+    return do_visit(Db::FIND_FOR_DAY_QUERY, QueryArgs<Task, std::string>(y_m_d_str + "%"), visitor);
+}
 
-    return handler.maybe_from_row();
+template<>
+expected<void, std::string> Db::visit_for_day(
+    const std::string& y_m_d_str,
+    std::function<bool(json&&)> visitor)
+{
+    return do_visit(Db::FIND_FOR_DAY_QUERY, QueryArgs<json, std::string>(y_m_d_str + "%"), visitor);
 }
 
 std::optional<Task> Db::find_at(const std::string& y_m_d_hh_mm_str)
 {
-    QueryArgs<Task, std::string> arg(y_m_d_hh_mm_str);
-
-    ReusableStatementHandler<Task, std::string> handler(
-        m_statements[Db::FIND_AT_QUERY], arg);
-
-    return handler.maybe_from_row();
+    return maybe_find(Db::FIND_AT_QUERY, QueryArgs<Task, std::string>(y_m_d_hh_mm_str));
 }
 
 expected<void, std::string> Db::visit_from_description(
         const std::string& partial_descr,
         std::function<bool(Task&&)> visitor)
 {
-    QueryArgs<Task, std::string> arg("%" + partial_descr + "%");
-    ReusableStatementHandler handler(m_statements[Db::FIND_FROM_DESCRIPTION_QUERY], arg);
-
-    bool step = true;
-    while (step && handler.has_next()) {
-        step = visitor(handler.from_row());
-    }
-
-    return expected<void, std::string>();
+    return do_visit(Db::FIND_FROM_DESCRIPTION_QUERY, QueryArgs<Task, std::string>("%" + partial_descr + "%"), visitor);
 }
 
 static expected<void, std::string> get_csv_header_column(std::stringstream& ss, const std::string& expected_name)
