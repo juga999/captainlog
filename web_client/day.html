@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CaptainLog</title>
+    <link rel="stylesheet" href="/css/bulma-0.9.4.min.css">
+    <link rel="stylesheet" href="/css/bulma-calendar-6.1.18.min.css">
+
+    <link rel="stylesheet" href="/css/common.css">
+
+    <script src="/js/bulma-calendar-6.1.18.min.js"></script>
+    <script src="/js/common.js?${APP_VERSION}"></script>
+    <script src="/js/task_service.js?${APP_VERSION}"></script>
+</head>
+<body>
+    <div class="main-wrapper">
+        <nav class="main-sidebar">
+            <div class="nav-items-list">
+                TODO
+            </div>
+            <div class="nav-item">
+                <input type="date">
+            </div>
+        </nav>
+        <div class="main-content">
+            TODO MAIN CONTENT
+        </div>
+        <div class="main-footer">
+            <span id="app_version"></span>
+        </div>
+    </div>
+</body>
+<script>
+    (function() {
+        CaptainLog.TaskService.getInfo().then(info => {
+            const appVersion = `${info.name} ${info.version} (${info.build_type} - ${info.git_hash})`;
+            document.getElementById("app_version").innerHTML = appVersion;
+        });
+
+        const urlParams = new URLSearchParams(window.location.search);
+        // Initialize all input of type date
+        var calendars = bulmaCalendar.attach("[type='date']", {
+            type: "date",
+            dateFormat: "yyyy-MM-dd",
+            displayMode: "inline",
+            closeOnSelect: true,
+            weekStart: 1,
+            showClearButton: false,
+            todayLabel: "Aujourd'hui",
+            startDate: `${urlParams.get("year")}-${urlParams.get("month")}-${urlParams.get("day")}`
+        });
+
+        const updateWindowLocation = function(datePicker) {
+            const dateItems = datePicker.data.value().split('-');
+            window.location = `/day?year=${dateItems[0]}&month=${dateItems[1]}&day=${dateItems[2]}`;
+        };
+
+        for(var i = 0; i < calendars.length; i++) {
+            calendars[i].on("save", updateWindowLocation);
+            calendars[i].on("select", datePicker => updateWindowLocation);
+        }
+    })();
+</script>
+</html>
