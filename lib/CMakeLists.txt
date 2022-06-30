@@ -24,7 +24,7 @@ add_library(captainlog_web web.cpp ${WEB_HEADER_LIST})
 # We need this directory, and users of our library will need it too
 target_include_directories(captainlog_utils PUBLIC ../include)
 target_include_directories(captainlog_task PUBLIC ../include)
-target_include_directories(captainlog_db PUBLIC ../include)
+target_include_directories(captainlog_db PUBLIC ../include ${LIBEVENT_INCLUDE_DIRS})
 target_include_directories(captainlog_web PUBLIC ../include ${PROJECT_BINARY_DIR})
 
 target_link_libraries(captainlog_task captainlog_utils)

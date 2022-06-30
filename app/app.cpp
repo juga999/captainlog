@@ -22,7 +22,6 @@
 #include <captainlog/db.hpp>
 #include <captainlog/web.hpp>
 
-
 namespace fs = std::filesystem;
 
 using json = nlohmann::json;
@@ -55,7 +54,7 @@ static void show_help()
     std::cout << "  --tail,-t <count>      " << " = Print the last <count> tasks.\n";
     std::cout << "  --delete,-d <YYYY-MM-DD HH:mm>|<id>"
               << " = Delete the task for the given date-time or the given id.\n";
-    std::cout << "  --web,-w <port>        " << " = Run as a web server on the given port.\n";
+    std::cout << "  --web,-w               " << " = Run as a web server on the port 'web_port' from the configuration.\n";
     std::cout << std::endl;
 }
 
@@ -86,7 +85,14 @@ static bool read_config_from_default_path()
         return false;
     }
 
-    fs::path app_config_path = config_dir_path / "captainlog.conf";
+    std::string conf_file_name;
+    if (is_debug_profile()) {
+        conf_file_name = "captainlog-dev.conf";
+    } else {
+        conf_file_name = "captainlog.conf";
+    }
+
+    fs::path app_config_path = config_dir_path / conf_file_name;
     if (!fs::exists(fs::status(app_config_path))) {
         std::cerr << app_config_path << " not found" << std::endl;
         return false;
@@ -287,9 +293,9 @@ static std::string build_projects_prompt(const std::vector<std::string>& project
     return cl::utils::join(entries, ", ");
 }
 
-static void start_web_server(cl::Db& db, const std::string web_arg)
+static void start_web_server(cl::Db& db)
 {
-    cl::WebServer web_server(db);
+    cl::WebServer web_server(config_json, db);
 
     auto init_result = web_server.init_server();
     if (!init_result) {
@@ -314,7 +320,7 @@ int main(int argc, char* argv[])
         {"resume",  required_argument,  0, 'r'},
         {"tail",    required_argument,  0, 't'},
         {"delete",  required_argument,  0, 'd'},
-        {"web",     required_argument,  0, 'w'},
+        {"web",     no_argument,        0, 'w'},
         {0,0,0,0},
     };
 
@@ -324,12 +330,12 @@ int main(int argc, char* argv[])
     std::string resume_arg;
     std::string tail_arg;
     std::string delete_arg;
-    std::string web_arg;
+    bool web_mode = false;
 
     int index;
     int iarg = 0;
     while (iarg != -1) {
-        iarg = getopt_long(argc, argv, "hvc:i:e:r:t:d:w:", longopts, &index);
+        iarg = getopt_long(argc, argv, "hvc:i:e:r:t:d:w", longopts, &index);
         switch (iarg) {
             case 'h':
                 show_help();
@@ -358,7 +364,7 @@ int main(int argc, char* argv[])
                 delete_arg = optarg;
                 break;
             case 'w':
-                web_arg = optarg;
+                web_mode = true;
                 break;
             case '?':
                 show_help();
@@ -401,8 +407,8 @@ int main(int argc, char* argv[])
             ::exit(EXIT_FAILURE);
         });
 
-    if (!web_arg.empty()) {
-        start_web_server(db, web_arg);
+    if (web_mode) {
+        start_web_server(db);
         ::exit(EXIT_SUCCESS);
     }
 
