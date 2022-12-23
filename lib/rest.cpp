@@ -14,7 +14,7 @@
 
 #include "app/app_config.h"
 
-#include <captainlog/web.hpp>
+#include <captainlog/rest.hpp>
 
 using tl::make_unexpected;
 
@@ -107,26 +107,6 @@ const std::regex API_ENDPOINT_TASKS_FOR_DAY(
     "/api/tasks/(\\d{4})/(\\d{2})/(\\d{2})/",
     std::regex_constants::ECMAScript | std::regex_constants::icase);
 
-const std::regex CONTENT_ENDPOINT_FOR_DAY(
-    "/day\\?year=(\\d{4})&month=(\\d{2})&day=(\\d{2})",
-    std::regex_constants::ECMAScript | std::regex_constants::icase);
-
-const std::regex CONTENT_ENDPOINT_ABOUT(
-    "/about",
-    std::regex_constants::ECMAScript | std::regex_constants::icase);
-
-const std::regex CSS_ENDPOINT(
-    ".*/css/([a-zA-Z0-9\\.\\-_]+\\.css)\\??.*",
-    std::regex_constants::ECMAScript | std::regex_constants::icase);
-
-const std::regex JS_ENDPOINT(
-    ".*/js/([a-zA-Z0-9\\.\\-_]+\\.js)\\??.*",
-    std::regex_constants::ECMAScript | std::regex_constants::icase);
-
-const std::regex SVG_ENDPOINT(
-    ".*/svg/([a-zA-Z0-9\\.\\-_]+\\.svg)\\??.*",
-    std::regex_constants::ECMAScript | std::regex_constants::icase);
-
 WebServer::WebServer(const json& config_json, cl::Db& db)
 : m_config_json(config_json)
 , m_db(db)
@@ -162,12 +142,6 @@ expected<void, std::string> WebServer::init_server()
     if (!m_config_json.contains("web_port")) {
         return make_unexpected("Port not configured ('web_port')");
     }
-
-    if (!m_config_json.contains("web_root")) {
-        return make_unexpected("Web root directory not configured ('web_root')");
-    }
-
-    m_web_root = m_config_json["web_root"].get<std::string>();
 
     m_cfg = event_config_new();
     m_base = event_base_new_with_config(m_cfg);
@@ -205,25 +179,6 @@ expected<void, std::string> WebServer::init_server()
 void WebServer::start()
 {
     event_base_dispatch(m_base);
-}
-
-expected<bool, std::string> WebServer::handle_redirect_today(struct evhttp_request* req)
-{
-    auto now = std::chrono::system_clock::now();
-    auto in_time_t = std::chrono::system_clock::to_time_t(now);
-
-    std::stringstream ss;
-    ss << std::put_time(std::localtime(&in_time_t), "/day?year=%Y&month=%m&day=%d");
-    std::string location = ss.str();
-
-    evhttp_add_header(evhttp_request_get_output_headers(req),
-		"Location", location.c_str());
-
-    EventBufferPtr evb(evbuffer_new(), &evbuffer_free);
-
-    evhttp_send_reply(req, HTTP_MOVETEMP, "Redirect", evb.get());
-
-    return true;
 }
 
 expected<bool, std::string> WebServer::handle_get_info_request(struct evhttp_request* req)
@@ -292,70 +247,6 @@ expected<bool, std::string> WebServer::handle_create_update_task_request(struct 
     });
 }
 
-expected<bool, std::string> WebServer::handle_get_day_request(struct evhttp_request* req)
-{
-    std::string resource_path = m_web_root + "/day.html";
-    return serve_resource(req, resource_path, "text/html; charset=utf-8");
-}
-
-expected<bool, std::string> WebServer::handle_about_request(struct evhttp_request* req)
-{
-    std::string resource_path = m_web_root + "/about.html";
-    return serve_resource(req, resource_path, "text/html; charset=utf-8");
-}
-
-expected<bool, std::string> WebServer::handle_get_css_request(struct evhttp_request* req, std::string&& css_file)
-{
-    std::string resource_path = m_web_root + "/css/" + css_file;
-    return serve_resource(req, resource_path, "text/css; charset=utf-8", true);
-}
-
-expected<bool, std::string> WebServer::handle_get_js_request(struct evhttp_request* req, std::string&& js_file)
-{
-    std::string resource_path = m_web_root + "/js/" + js_file;
-    return serve_resource(req, resource_path, "application/javascript; charset=utf-8", true);
-}
-
-expected<bool, std::string> WebServer::handle_get_svg_request(struct evhttp_request* req, std::string&& svg_file)
-{
-    std::string resource_path = m_web_root + "/svg/" + svg_file;
-    return serve_resource(req, resource_path, "image/svg+xml", true);
-}
-
-expected<bool, std::string> WebServer::serve_resource(
-    struct evhttp_request* req,
-    const std::string& path,
-    const std::string& content_type,
-    bool cache)
-{
-    auto fd = ::open(path.c_str(), O_RDONLY);
-    if (fd < 0) {
-        return make_unexpected("Failed to open " + path);
-    }
-
-    struct stat st;
-    if (::fstat(fd, &st) < 0) {
-        ::close(fd);
-        return make_unexpected("Failed to stat " + path);
-    }
-
-    EventBufferPtr evb(evbuffer_new(), &evbuffer_free);
-
-    evbuffer_add_file(evb.get(), fd, 0, st.st_size);
-
-    auto headers = evhttp_request_get_output_headers(req);
-    evhttp_add_header(headers, "Content-Type", content_type.c_str());
-    if (cache) {
-        evhttp_add_header(headers, "Cache-Control", "public, max-age=604800, immutable");
-    } else {
-        evhttp_add_header(headers, "Cache-Control", "no-store");
-    }
-
-    evhttp_send_reply(req, HTTP_OK, "OK", evb.get());
-
-    return true;
-}
-
 bool WebServer::send_ok_json_response(struct evhttp_request* req, const json& json_response)
 {
     evhttp_request_set_on_complete_cb(req, on_request_completion_cb, this);
@@ -411,9 +302,7 @@ static void handle_generic_request(struct evhttp_request* req, void* arg)
     std::cout << "\t URI " << uri << std::endl;
 
     if (command == EVHTTP_REQ_GET) {
-        if (uri == "/") {
-            response_result = self->handle_redirect_today(req);
-        } else if (uri == "/api/info") {
+        if (uri == "/api/info") {
             response_result = self->handle_get_info_request(req);
         } else if (std::regex_match(uri, m, API_ENDPOINT_TASK_FROM_ID)) {
             auto id = std::strtol(m[1].str().c_str(), nullptr, 10);
@@ -421,16 +310,6 @@ static void handle_generic_request(struct evhttp_request* req, void* arg)
         } else if (std::regex_match(uri, m, API_ENDPOINT_TASKS_FOR_DAY)) {
             std::string param =  m[1].str() + "-" + m[2].str() + "-" + m[3].str();
             response_result = self->handle_get_tasks_for_day_request(req, std::move(param));
-        } else if (std::regex_match(uri, m, CONTENT_ENDPOINT_FOR_DAY)) {
-            response_result = self->handle_get_day_request(req);
-        } else if (std::regex_match(uri, m, CONTENT_ENDPOINT_ABOUT)) {
-            response_result = self->handle_about_request(req);
-        } else if (std::regex_match(uri, m, CSS_ENDPOINT)) {
-            response_result = self->handle_get_css_request(req, std::move(m[1].str()));
-        } else if (std::regex_match(uri, m, JS_ENDPOINT)) {
-            response_result = self->handle_get_js_request(req, std::move(m[1].str()));
-        } else if (std::regex_match(uri, m, SVG_ENDPOINT)) {
-            response_result = self->handle_get_svg_request(req, std::move(m[1].str()));
         }
     } else if (command == EVHTTP_REQ_DELETE) {
         if (std::regex_match(uri, m, API_ENDPOINT_TASK_FROM_ID)) {

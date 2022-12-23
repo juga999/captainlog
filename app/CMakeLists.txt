@@ -7,7 +7,7 @@ target_include_directories(captainlog PRIVATE ${PROJECT_BINARY_DIR})
 target_link_libraries(captainlog PRIVATE
   captainlog_task
   captainlog_db
-  captainlog_web
+  captainlog_rest
   ${SQLite3_LIBRARIES}
   ${LIBEVENT_LIBRARIES}
   nlohmann_json::nlohmann_json)

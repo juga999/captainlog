@@ -20,7 +20,7 @@
 #include <captainlog/utils.hpp>
 #include <captainlog/task.hpp>
 #include <captainlog/db.hpp>
-#include <captainlog/web.hpp>
+#include <captainlog/rest.hpp>
 
 namespace fs = std::filesystem;
 
