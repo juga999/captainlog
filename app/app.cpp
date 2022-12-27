@@ -9,8 +9,6 @@
 
 #include <getopt.h>
 
-#include <sqlite3.h>
-
 #include <event2/event.h>
 
 #include <nlohmann/json.hpp>
@@ -19,7 +17,7 @@
 
 #include <captainlog/utils.hpp>
 #include <captainlog/task.hpp>
-#include <captainlog/db.hpp>
+#include <captainlog/db_sqlite.hpp>
 #include <captainlog/rest.hpp>
 
 namespace fs = std::filesystem;
@@ -189,7 +187,7 @@ int main(int argc, char* argv[])
         }
     }
 
-    cl::Db db(std::move(db_path));
+    cl::DbSqlite db(std::move(db_path));
     db.open()
         .and_then([&](){
             return db.init_db();})

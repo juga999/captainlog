@@ -9,15 +9,13 @@
 
 #include <getopt.h>
 
-#include <sqlite3.h>
-
 #include <nlohmann/json.hpp>
 
 #include "app/app_config.h"
 
 #include <captainlog/utils.hpp>
 #include <captainlog/task.hpp>
-#include <captainlog/db.hpp>
+#include <captainlog/db_sqlite.hpp>
 #include <captainlog/import_export.hpp>
 
 namespace fs = std::filesystem;
@@ -182,7 +180,7 @@ static bool delete_task(cl::Db& db, const std::string& delete_arg)
         }
     } else {
         int id = std::strtol(delete_arg.c_str(), nullptr, 10);
-        auto maybe_from_id = db.find_from_id<cl::Task>(id);
+        auto maybe_from_id = db.find_from_id(cl::QueryArgs<cl::Task, int>(id));
         maybe_task.swap(maybe_from_id);
     }
 
@@ -378,7 +376,7 @@ int main(int argc, char* argv[])
         }
     }
 
-    cl::Db db(std::move(db_path));
+    cl::DbSqlite db(std::move(db_path));
     db.open()
         .and_then([&](){
             return db.init_db();})

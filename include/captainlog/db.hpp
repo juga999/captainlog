@@ -5,7 +5,6 @@
 #include <tuple>
 #include <type_traits>
 
-#include <sqlite3.h>
 #include <nlohmann/json.hpp>
 
 #include <captainlog/expected.hpp>
@@ -37,72 +36,56 @@ private:
 
 class Db {
 public:
-    Db(std::string&& path);
+    virtual ~Db() {}
 
-    ~Db();
+    virtual expected<void, std::string> open() CL_MUST_USE_RESULT = 0;
 
-    expected<void, std::string> open() CL_MUST_USE_RESULT;
+    virtual expected<void, std::string> init_db() CL_MUST_USE_RESULT = 0;
 
-    expected<void, std::string> init_db() CL_MUST_USE_RESULT;
+    virtual expected<void, std::string> insert(const Task& task) CL_MUST_USE_RESULT = 0;
 
-    expected<void, std::string> insert(const Task& task) CL_MUST_USE_RESULT;
+    virtual expected<void, std::string> insert(const json& json_task) CL_MUST_USE_RESULT = 0;
 
-    expected<void, std::string> insert(const json& json_task) CL_MUST_USE_RESULT;
+    virtual expected<void, std::string> update(const json& json_task) CL_MUST_USE_RESULT = 0;
 
-    expected<void, std::string> update(const json& json_task) CL_MUST_USE_RESULT;
+    virtual expected<void, std::string> delete_from_id(const Task::TaskId&) CL_MUST_USE_RESULT = 0;
 
-    expected<void, std::string> delete_from_id(const Task::TaskId&) CL_MUST_USE_RESULT;
+    virtual expected<void, std::string> delete_all() CL_MUST_USE_RESULT = 0;
 
-    expected<void, std::string> delete_all() CL_MUST_USE_RESULT;
+    virtual expected<void, std::string> visit_all(std::function<bool(Task&&)> visitor) CL_MUST_USE_RESULT = 0;
 
-    expected<void, std::string> visit_all(std::function<bool(Task&&)> visitor) CL_MUST_USE_RESULT;
+    virtual std::optional<Task> find_from_id(QueryArgs<Task, Task::TaskId>&&) CL_MUST_USE_RESULT = 0;
 
-    template<class T>
-    std::optional<T> find_from_id(QueryArgs<T, Task::TaskId>&&) { return std::nullopt; }
+    virtual std::optional<json> find_from_id(QueryArgs<json, Task::TaskId>&&) CL_MUST_USE_RESULT = 0;
 
-    std::optional<Task> find_latest() CL_MUST_USE_RESULT;
+    virtual std::optional<Task> find_latest() CL_MUST_USE_RESULT = 0;
 
-    expected<void, std::string> visit_n_latest(int count, std::function<bool(Task&&)> visitor) CL_MUST_USE_RESULT;
+    virtual expected<void, std::string> visit_n_latest(int count, std::function<bool(Task&&)> visitor) CL_MUST_USE_RESULT = 0;
 
-    std::optional<Task> find_latest_for_day(const std::string& y_m_d_str) CL_MUST_USE_RESULT;
+    virtual std::optional<Task> find_latest_for_day(const std::string& y_m_d_str) CL_MUST_USE_RESULT = 0;
 
-    template<class T>
-    expected<void, std::string> visit_for_day(
+    virtual expected<void, std::string> visit_for_day(
         const std::string& y_m_d_str,
-        std::function<bool(T&&)> visitor) CL_MUST_USE_RESULT;
+        std::function<bool(Task&&)> visitor) CL_MUST_USE_RESULT = 0;
 
-    std::optional<Task> find_at(const std::string& y_m_d_hh_mm_str) CL_MUST_USE_RESULT;
+    virtual expected<void, std::string> visit_for_day(
+        const std::string& y_m_d_str,
+        std::function<bool(json&&)> visitor) CL_MUST_USE_RESULT = 0;
 
-    expected<void, std::string> visit_from_description(
+    virtual std::optional<Task> find_at(const std::string& y_m_d_hh_mm_str) CL_MUST_USE_RESULT = 0;
+
+    virtual expected<void, std::string> visit_from_description(
         const std::string& partial_descr,
-        std::function<bool(Task&&)> visitor) CL_MUST_USE_RESULT;
+        std::function<bool(Task&&)> visitor) CL_MUST_USE_RESULT = 0;
 
-private:
-    enum QueryKey : unsigned int;
+protected:
+    Db() {}
 
 private:
     Db(const Db&) = delete;
     Db(Db&&) = delete;
     Db& operator=(const Db&) = delete;
     Db& operator=(Db&&) = delete;
-
-    template<class R, typename... As>
-    expected<void, std::string> exec(QueryKey, const QueryArgs<R, As...>&);
-
-    template<class R, typename... As>
-    std::optional<R> maybe_find(QueryKey, const QueryArgs<R, As...>&);
-
-    template<class R, typename... As>
-    expected<void, std::string> do_visit(QueryKey, const QueryArgs<R, As...>&, std::function<bool(R&&)>);
-
-    expected<void, std::string> exec_query(std::string&& query_str) CL_MUST_USE_RESULT;
-    expected<sqlite3_stmt*, std::string> prepare_query(QueryKey key, std::string&& query_str) CL_MUST_USE_RESULT;
-    expected<sqlite3_stmt*, std::string> prepare_task_select_query(QueryKey key, std::string&& sub_query_str) CL_MUST_USE_RESULT;
-
-    bool m_exists;
-    std::string m_db_path;
-    sqlite3* m_db;
-    std::map<QueryKey, sqlite3_stmt*> m_statements;
 };
 
 }

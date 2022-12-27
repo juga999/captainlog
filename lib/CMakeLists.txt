@@ -9,7 +9,8 @@ set(TASK_HEADER_LIST
 
 set(DB_HEADER_LIST
   ${COMMON_HEADER_LIST}
-  "${CaptainLog_SOURCE_DIR}/include/captainlog/db.hpp")
+  "${CaptainLog_SOURCE_DIR}/include/captainlog/db.hpp"
+  "${CaptainLog_SOURCE_DIR}/include/captainlog/db_sqlite.hpp")
 
 set(IMPORT_EXPORT_HEADER_LIST
   ${COMMON_HEADER_LIST}
@@ -22,7 +23,7 @@ set(REST_HEADER_LIST
 # Make an automatic library - will be static or dynamic based on user setting
 add_library(captainlog_utils utils.cpp "${CaptainLog_SOURCE_DIR}/include/captainlog/utils.hpp")
 add_library(captainlog_task task.cpp ${TASK_HEADER_LIST})
-add_library(captainlog_db db.cpp ${DB_HEADER_LIST})
+add_library(captainlog_db db_sqlite.cpp ${DB_HEADER_LIST})
 add_library(captainlog_import_export import_export.cpp ${IMPORT_EXPORT_HEADER_LIST})
 add_library(captainlog_rest rest.cpp ${REST_HEADER_LIST})
 

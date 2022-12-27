@@ -5,7 +5,7 @@
 #include <chrono>
 #include <thread>
 
-#include <captainlog/db.hpp>
+#include <captainlog/db_sqlite.hpp>
 #include <captainlog/utils.hpp>
 
 using namespace std::chrono;
@@ -166,7 +166,7 @@ struct ReusableStatementHandler
 struct NoResult {};
 
 template<class R, typename... As>
-expected<void, std::string> Db::exec(QueryKey query_key, const QueryArgs<R, As...>& args)
+expected<void, std::string> DbSqlite::exec(QueryKey query_key, const QueryArgs<R, As...>& args)
 {
     ReusableStatementHandler handler(m_statements[query_key], args);
 
@@ -179,7 +179,7 @@ expected<void, std::string> Db::exec(QueryKey query_key, const QueryArgs<R, As..
 }
 
 template<class R, typename... As>
-expected<void, std::string> Db::do_visit(
+expected<void, std::string> DbSqlite::do_visit(
     QueryKey query_key, 
     const QueryArgs<R, As...>& args, 
     std::function<bool(R&&)> visitor)
@@ -192,7 +192,7 @@ expected<void, std::string> Db::do_visit(
 }
 
 template<class R, typename... As>
-std::optional<R> Db::maybe_find(QueryKey query_key, const QueryArgs<R, As...>& args)
+std::optional<R> DbSqlite::maybe_find(QueryKey query_key, const QueryArgs<R, As...>& args)
 {
     ReusableStatementHandler handler(m_statements[query_key], args);
 
@@ -200,7 +200,7 @@ std::optional<R> Db::maybe_find(QueryKey query_key, const QueryArgs<R, As...>& a
 }
 
 
-enum Db::QueryKey : unsigned int
+enum DbSqlite::QueryKey : unsigned int
 {
     INSERT_QUERY,
     UPDATE_QUERY,
@@ -214,7 +214,7 @@ enum Db::QueryKey : unsigned int
     FIND_AT_QUERY
 };
 
-Db::Db(std::string&& path)
+DbSqlite::DbSqlite(std::string&& path)
     : m_exists(false)
     , m_db_path(std::move(path))
     , m_db(nullptr)
@@ -228,7 +228,7 @@ Db::Db(std::string&& path)
     }
 }
 
-Db::~Db()
+DbSqlite::~DbSqlite()
 {
     if (m_db == nullptr) {
         return;
@@ -248,7 +248,7 @@ Db::~Db()
     m_db = nullptr;
 }
 
-expected<void, std::string> Db::open()
+expected<void, std::string> DbSqlite::open()
 {
     if (m_db != nullptr) {
         return make_unexpected("Database already opened");
@@ -269,7 +269,7 @@ expected<void, std::string> Db::open()
     return expected<void, std::string>();
 }
 
-expected<void, std::string> Db::init_db()
+expected<void, std::string> DbSqlite::init_db()
 {
     if (!m_exists) {
         if (auto res = exec_query(
@@ -287,7 +287,7 @@ expected<void, std::string> Db::init_db()
         std::cout << "Created table tasks" << std::endl;
     }
 
-    if (auto res = prepare_query(Db::INSERT_QUERY,
+    if (auto res = prepare_query(DbSqlite::INSERT_QUERY,
             " INSERT INTO tasks ( "
             "    task_start, task_stop, task_project, task_description, task_tags, task_comment) "
             " VALUES ( "
@@ -295,7 +295,7 @@ expected<void, std::string> Db::init_db()
         return make_unexpected(res.error());
     }
 
-    if (auto res = prepare_query(Db::UPDATE_QUERY,
+    if (auto res = prepare_query(DbSqlite::UPDATE_QUERY,
             " UPDATE tasks SET "
             " task_start = ?, task_stop = ?, "
             " task_project = ?, task_description = ?, "
@@ -304,41 +304,41 @@ expected<void, std::string> Db::init_db()
         return make_unexpected(res.error());
     }  
 
-    if (auto res = prepare_query(Db::DELETE_FROM_ID_QUERY,
+    if (auto res = prepare_query(DbSqlite::DELETE_FROM_ID_QUERY,
             " DELETE FROM tasks WHERE task_id = ? "); !res) {
         return make_unexpected(res.error());
     }
 
-    if (auto res = prepare_task_select_query(Db::SELECT_ALL_QUERY, ""); !res) {
+    if (auto res = prepare_task_select_query(DbSqlite::SELECT_ALL_QUERY, ""); !res) {
         return make_unexpected(res.error());
     }
 
-    if (auto res = prepare_task_select_query(Db::FIND_FROM_ID_QUERY,
+    if (auto res = prepare_task_select_query(DbSqlite::FIND_FROM_ID_QUERY,
             " WHERE task_id = ? "); !res) {
         return make_unexpected(res.error());
     }
 
-    if (auto res = prepare_task_select_query(Db::FIND_LATEST_QUERY,
+    if (auto res = prepare_task_select_query(DbSqlite::FIND_LATEST_QUERY,
             " ORDER BY DATETIME(task_stop) DESC LIMIT ? "); !res) {
         return make_unexpected(res.error());
     }
 
-    if (auto res = prepare_task_select_query(Db::FIND_LATEST_FOR_DAY_QUERY,
+    if (auto res = prepare_task_select_query(DbSqlite::FIND_LATEST_FOR_DAY_QUERY,
             " WHERE task_stop LIKE ? ORDER BY DATETIME(task_stop) DESC LIMIT 1 "); !res) {
         return make_unexpected(res.error());
     }
 
-    if (auto res = prepare_task_select_query(Db::FIND_FOR_DAY_QUERY,
+    if (auto res = prepare_task_select_query(DbSqlite::FIND_FOR_DAY_QUERY,
             " WHERE task_stop LIKE ? ORDER BY DATETIME(task_stop) ASC "); !res) {
         return make_unexpected(res.error());
     }
 
-    if (auto res = prepare_task_select_query(Db::FIND_FROM_DESCRIPTION_QUERY,
+    if (auto res = prepare_task_select_query(DbSqlite::FIND_FROM_DESCRIPTION_QUERY,
             " WHERE task_description LIKE ? ORDER BY DATETIME(task_stop) DESC "); !res) {
         return make_unexpected(res.error());
     }
 
-    if (auto res = prepare_task_select_query(Db::FIND_AT_QUERY,
+    if (auto res = prepare_task_select_query(DbSqlite::FIND_AT_QUERY,
             " WHERE DATETIME(?) BETWEEN DATETIME(task_start) AND DATETIME(task_stop) "); !res) {
         return make_unexpected(res.error());
     }
@@ -346,7 +346,7 @@ expected<void, std::string> Db::init_db()
     return expected<void, std::string>();
 }
 
-expected<void, std::string> Db::delete_all()
+expected<void, std::string> DbSqlite::delete_all()
 {
     if (auto res = exec_query("DELETE FROM tasks"); !res) {
         return make_unexpected(std::string("Failed to delete tasks: ").append(res.error()));
@@ -354,12 +354,12 @@ expected<void, std::string> Db::delete_all()
     return expected<void, std::string>();
 }
 
-expected<void, std::string> Db::delete_from_id(const Task::TaskId& id)
+expected<void, std::string> DbSqlite::delete_from_id(const Task::TaskId& id)
 {
-    return exec(Db::DELETE_FROM_ID_QUERY, QueryArgs<NoResult, Task::TaskId>(id));
+    return exec(DbSqlite::DELETE_FROM_ID_QUERY, QueryArgs<NoResult, Task::TaskId>(id));
 }
 
-expected<void, std::string> Db::insert(const Task& task)
+expected<void, std::string> DbSqlite::insert(const Task& task)
 {
     QueryArgs<NoResult, std::string, std::string, std::string, std::string, std::string, std::string> args(
         task.start_str(),
@@ -369,10 +369,10 @@ expected<void, std::string> Db::insert(const Task& task)
         task.joined_tags(),
         task.comment());
 
-    return exec(Db::INSERT_QUERY, args);
+    return exec(DbSqlite::INSERT_QUERY, args);
 }
 
-expected<void, std::string> Db::insert(const json& json_task)
+expected<void, std::string> DbSqlite::insert(const json& json_task)
 {
     auto task_res = task_from_json(json_task);
     if (!task_res) {
@@ -387,10 +387,10 @@ expected<void, std::string> Db::insert(const json& json_task)
         task_res.value().joined_tags(),
         task_res.value().comment());
 
-    return exec(Db::INSERT_QUERY, args);
+    return exec(DbSqlite::INSERT_QUERY, args);
 }
 
-expected<void, std::string> Db::update(const json& json_task)
+expected<void, std::string> DbSqlite::update(const json& json_task)
 {
     auto task_res = task_from_json(json_task);
     if (!task_res) {
@@ -406,74 +406,70 @@ expected<void, std::string> Db::update(const json& json_task)
         task_res.value().comment(),
         task_res.value().id());
 
-    return exec(Db::UPDATE_QUERY, args);
+    return exec(DbSqlite::UPDATE_QUERY, args);
 }
 
-template<>
-std::optional<Task> Db::find_from_id(QueryArgs<Task, Task::TaskId>&& arg)
+std::optional<Task> DbSqlite::find_from_id(QueryArgs<Task, Task::TaskId>&& arg)
 {
-    return maybe_find(Db::FIND_FROM_ID_QUERY, arg);
+    return maybe_find(DbSqlite::FIND_FROM_ID_QUERY, arg);
 }
 
-template<>
-std::optional<json> Db::find_from_id(QueryArgs<json, Task::TaskId>&& arg)
+std::optional<json> DbSqlite::find_from_id(QueryArgs<json, Task::TaskId>&& arg)
 {
-    return maybe_find(Db::FIND_FROM_ID_QUERY, arg);
+    return maybe_find(DbSqlite::FIND_FROM_ID_QUERY, arg);
 }
 
-expected<void, std::string> Db::visit_all(std::function<bool(Task&&)> visitor)
+expected<void, std::string> DbSqlite::visit_all(std::function<bool(Task&&)> visitor)
 {
-    return do_visit(Db::SELECT_ALL_QUERY, QueryArgs<Task>(), visitor);
+    return do_visit(DbSqlite::SELECT_ALL_QUERY, QueryArgs<Task>(), visitor);
 }
 
-std::optional<Task> Db::find_latest()
+std::optional<Task> DbSqlite::find_latest()
 {
-    return maybe_find(Db::FIND_LATEST_QUERY, QueryArgs<Task, int>(1));
+    return maybe_find(DbSqlite::FIND_LATEST_QUERY, QueryArgs<Task, int>(1));
 }
 
-expected<void, std::string> Db::visit_n_latest(int count, std::function<bool(Task&&)> visitor)
+expected<void, std::string> DbSqlite::visit_n_latest(int count, std::function<bool(Task&&)> visitor)
 {
     if (count <= 0) {
         return make_unexpected("Invalid count: " + count);
     }
 
-    return do_visit(Db::FIND_LATEST_QUERY, QueryArgs<Task, int>(count), visitor);
+    return do_visit(DbSqlite::FIND_LATEST_QUERY, QueryArgs<Task, int>(count), visitor);
 }
 
-std::optional<Task> Db::find_latest_for_day(const std::string& y_m_d_str)
+std::optional<Task> DbSqlite::find_latest_for_day(const std::string& y_m_d_str)
 {
-    return maybe_find(Db::FIND_LATEST_FOR_DAY_QUERY, QueryArgs<Task, std::string>(y_m_d_str + "%"));
+    return maybe_find(DbSqlite::FIND_LATEST_FOR_DAY_QUERY, QueryArgs<Task, std::string>(y_m_d_str + "%"));
 }
 
-template<>
-expected<void, std::string> Db::visit_for_day(
+expected<void, std::string> DbSqlite::visit_for_day(
     const std::string& y_m_d_str,
     std::function<bool(Task&&)> visitor)
 {
-    return do_visit(Db::FIND_FOR_DAY_QUERY, QueryArgs<Task, std::string>(y_m_d_str + "%"), visitor);
+    return do_visit(DbSqlite::FIND_FOR_DAY_QUERY, QueryArgs<Task, std::string>(y_m_d_str + "%"), visitor);
 }
 
-template<>
-expected<void, std::string> Db::visit_for_day(
+expected<void, std::string> DbSqlite::visit_for_day(
     const std::string& y_m_d_str,
     std::function<bool(json&&)> visitor)
 {
-    return do_visit(Db::FIND_FOR_DAY_QUERY, QueryArgs<json, std::string>(y_m_d_str + "%"), visitor);
+    return do_visit(DbSqlite::FIND_FOR_DAY_QUERY, QueryArgs<json, std::string>(y_m_d_str + "%"), visitor);
 }
 
-std::optional<Task> Db::find_at(const std::string& y_m_d_hh_mm_str)
+std::optional<Task> DbSqlite::find_at(const std::string& y_m_d_hh_mm_str)
 {
-    return maybe_find(Db::FIND_AT_QUERY, QueryArgs<Task, std::string>(y_m_d_hh_mm_str));
+    return maybe_find(DbSqlite::FIND_AT_QUERY, QueryArgs<Task, std::string>(y_m_d_hh_mm_str));
 }
 
-expected<void, std::string> Db::visit_from_description(
+expected<void, std::string> DbSqlite::visit_from_description(
         const std::string& partial_descr,
         std::function<bool(Task&&)> visitor)
 {
-    return do_visit(Db::FIND_FROM_DESCRIPTION_QUERY, QueryArgs<Task, std::string>("%" + partial_descr + "%"), visitor);
+    return do_visit(DbSqlite::FIND_FROM_DESCRIPTION_QUERY, QueryArgs<Task, std::string>("%" + partial_descr + "%"), visitor);
 }
 
-expected<void, std::string> Db::exec_query(std::string&& query_str)
+expected<void, std::string> DbSqlite::exec_query(std::string&& query_str)
 {
     char *err_msg = nullptr;
     int res = sqlite3_exec(m_db, query_str.c_str(), 0, 0, &err_msg);
@@ -485,7 +481,7 @@ expected<void, std::string> Db::exec_query(std::string&& query_str)
     return expected<void, std::string>();
 }
 
-expected<sqlite3_stmt*, std::string> Db::prepare_query(QueryKey key, std::string&& query_str)
+expected<sqlite3_stmt*, std::string> DbSqlite::prepare_query(QueryKey key, std::string&& query_str)
 {
     if (m_statements.find(key) != m_statements.end()) {
         return make_unexpected("Query already prepared");
@@ -501,7 +497,7 @@ expected<sqlite3_stmt*, std::string> Db::prepare_query(QueryKey key, std::string
     return stmt;
 }
 
-expected<sqlite3_stmt*, std::string> Db::prepare_task_select_query(QueryKey key, std::string&& sub_query_str)
+expected<sqlite3_stmt*, std::string> DbSqlite::prepare_task_select_query(QueryKey key, std::string&& sub_query_str)
 {
     return prepare_query(key,
         " SELECT task_id, task_start, task_stop, task_project, task_description, task_tags, task_comment FROM tasks "

@@ -6,7 +6,7 @@
 using namespace std;
 
 #include <captainlog/task.hpp>
-#include <captainlog/db.hpp>
+#include <captainlog/db_sqlite.hpp>
 #include <captainlog/import_export.hpp>
 
 class DbTestsFixture {
@@ -36,7 +36,7 @@ public:
     }
 
 protected:
-    cl::Db m_db;
+    cl::DbSqlite m_db;
     expected<bool, std::string> m_open_res;
 };
 
@@ -121,7 +121,7 @@ TEST_CASE_METHOD(DbTestsFixture, "find from id", "[db]") {
     auto import_res = import_legacy_csv(oss.str());
     REQUIRE(import_res.has_value());
 
-    auto maybe_task = m_db.find_from_id<cl::Task>(2);
+    auto maybe_task = m_db.find_from_id(cl::QueryArgs<cl::Task, int>(2));
     REQUIRE(maybe_task.has_value());
 
     REQUIRE(maybe_task->id() == 2);
@@ -257,7 +257,7 @@ TEST_CASE_METHOD(DbTestsFixture, "update task from json", "[db]") {
     auto import_res = import_legacy_csv(oss.str());
     REQUIRE(import_res.has_value());
 
-    auto maybe_task = m_db.find_from_id<cl::Task>(1);
+    auto maybe_task = m_db.find_from_id(cl::QueryArgs<cl::Task, int>(1));
     REQUIRE(maybe_task.has_value());
 
     json json_task{
@@ -273,7 +273,7 @@ TEST_CASE_METHOD(DbTestsFixture, "update task from json", "[db]") {
     auto update_res = m_db.update(json_task);
     REQUIRE(update_res.has_value());
 
-    auto maybe_updated_task = m_db.find_from_id<cl::Task>(1);
+    auto maybe_updated_task = m_db.find_from_id(cl::QueryArgs<cl::Task, int>(1));
     REQUIRE(maybe_updated_task.has_value());
 
     cl::Task expected_task(

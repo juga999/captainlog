@@ -195,7 +195,7 @@ expected<bool, std::string> WebServer::handle_get_info_request(struct evhttp_req
 
 expected<bool, std::string> WebServer::handle_get_task_request(struct evhttp_request* req, int id)
 {
-    auto maybe_task = m_db.find_from_id<json>(id);
+    auto maybe_task = m_db.find_from_id(cl::QueryArgs<json, int>(id));
     if (!maybe_task) {
         return false;
     }
@@ -217,7 +217,7 @@ expected<bool, std::string> WebServer::handle_get_tasks_for_day_request(struct e
 {
     json json_response = json::array();
 
-    return m_db.visit_for_day<json>(y_m_d_str, [&](auto json_task) {
+    return m_db.visit_for_day(y_m_d_str, [&](json&& json_task) {
         json_response.push_back(json_task);
         return true;
     })
