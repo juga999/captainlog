@@ -13,7 +13,7 @@ target_compile_features(test_task PRIVATE cxx_std_17)
 target_compile_features(test_db PRIVATE cxx_std_17)
 
 target_link_libraries(test_task PRIVATE captainlog_task Catch2::Catch2)
-target_link_libraries(test_db PRIVATE captainlog_db Catch2::Catch2)
+target_link_libraries(test_db PRIVATE captainlog_db captainlog_import_export Catch2::Catch2)
 
 add_test(NAME task COMMAND test_task)
 add_test(NAME db COMMAND test_db)

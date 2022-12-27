@@ -18,6 +18,7 @@ target_link_libraries(captainlog PRIVATE
 target_link_libraries(captainlog_cli PRIVATE
   captainlog_task
   captainlog_db
+  captainlog_import_export
   ${SQLite3_LIBRARIES}
   nlohmann_json::nlohmann_json)
 

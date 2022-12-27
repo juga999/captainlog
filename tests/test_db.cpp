@@ -7,6 +7,7 @@ using namespace std;
 
 #include <captainlog/task.hpp>
 #include <captainlog/db.hpp>
+#include <captainlog/import_export.hpp>
 
 class DbTestsFixture {
 public:
@@ -22,8 +23,10 @@ public:
     }
 
     expected<unsigned int, std::string> import_legacy_csv(const std::string& data) {
+        cl::Importer importer(m_db);
+
         istringstream iss(data);
-        auto import_res = m_db
+        auto import_res = importer
             .import_legacy_csv(iss)
             .map_error([&](auto err) {
                 std::cerr << "Error: " << err << std::endl;

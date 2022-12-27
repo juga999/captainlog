@@ -14,6 +14,7 @@
 
 #include "app/app_config.h"
 
+#include <captainlog/db.hpp>
 #include <captainlog/rest.hpp>
 
 using tl::make_unexpected;

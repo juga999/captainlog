@@ -18,6 +18,7 @@
 #include <captainlog/utils.hpp>
 #include <captainlog/task.hpp>
 #include <captainlog/db.hpp>
+#include <captainlog/import_export.hpp>
 
 namespace fs = std::filesystem;
 
@@ -120,9 +121,11 @@ static bool read_config_from_path(const std::string& p)
 
 static bool import_legacy_csv(cl::Db& db, const std::string& filename)
 {
+    cl::Importer importer(db);
+
     auto result = db.delete_all()
         .and_then([&]() { 
-            return db.import_legacy_csv(filename);
+            return importer.import_legacy_csv(filename);
         })
         .map([&](auto count) {
             std::cout << "Imported " << count << " entries" << std::endl;
@@ -137,7 +140,9 @@ static bool import_legacy_csv(cl::Db& db, const std::string& filename)
 
 static bool export_legacy_csv(cl::Db& db, const std::string& filename)
 {
-    auto result = db.export_legacy_csv(filename)
+    cl::Exporter exporter(db);
+
+    auto result = exporter.export_legacy_csv(filename)
         .map([](auto count) {
             std::cout << "Exported " << count << " entries" << std::endl;
             return true;

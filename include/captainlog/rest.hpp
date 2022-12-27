@@ -7,12 +7,13 @@
 
 #include <captainlog/expected.hpp>
 #include <captainlog/common.hpp>
-#include <captainlog/db.hpp>
 
 using tl::expected;
 using json = nlohmann::json;
 
 namespace cl {
+
+class Db;
 
 class WebServer
 {

@@ -77,12 +77,6 @@ public:
         const std::string& partial_descr,
         std::function<bool(Task&&)> visitor) CL_MUST_USE_RESULT;
 
-    expected<unsigned int, std::string> import_legacy_csv(std::istream& is) CL_MUST_USE_RESULT;
-
-    expected<unsigned int, std::string> import_legacy_csv(const std::string& filename) CL_MUST_USE_RESULT;
-
-    expected<unsigned int, std::string> export_legacy_csv(const std::string& filename) CL_MUST_USE_RESULT;
-
 private:
     enum QueryKey : unsigned int;
 
