@@ -36,6 +36,9 @@ private:
 
 class Db {
 public:
+    static expected<Task, std::string> task_from_json(const json& json_task) CL_MUST_USE_RESULT;
+
+public:
     virtual ~Db() {}
 
     virtual expected<void, std::string> open() CL_MUST_USE_RESULT = 0;

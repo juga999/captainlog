@@ -27,6 +27,7 @@ include(FetchContent)
 list(APPEND CMAKE_MODULE_PATH "${CaptainLog_SOURCE_DIR}/cmake")
 
 find_package(SQLite3)
+find_package(PostgreSQLFrontEnd)
 find_package(Libevent 2.2 REQUIRED COMPONENTS extra)
 
 FetchContent_Declare(
