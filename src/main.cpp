@@ -1,8 +1,5 @@
 #include <gtk/gtk.h>
 
-#include <nlohmann/json.hpp>
-using json = nlohmann::json;
-
 extern "C" void on_activate(GtkApplication*, gpointer);
 
 int main(int argc, char* argv[])

@@ -1,5 +1,6 @@
 release/
 debug/
+docker-node-dev/
 .settings/
 .cproject
 .project

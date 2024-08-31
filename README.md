@@ -13,4 +13,12 @@ cmake -DCMAKE_BUILD_TYPE=Release ..
 
 ## Vite project setup
 
-TODO
+### Local development environment
+
+Create the configuration file `captainlog-dev.conf` in the debug directory:
+
+```json
+{
+  "ui-dev-url": "http://localhost:18000"
+}
+```
