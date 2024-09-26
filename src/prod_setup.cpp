@@ -5,10 +5,10 @@
 
 static void handle_app_uri_scheme(WebKitURISchemeRequest *request, gpointer user_data)
 {
-    const gchar *uri = webkit_uri_scheme_request_get_uri(request);
+    const gchar* uri = webkit_uri_scheme_request_get_uri(request);
     g_print("Handling request for URI: %s\n", uri);
 
-    const gchar *html = "<html><body><h1>Hello from chorem:// protocol!</h1></body></html>";
+    const gchar* html = "<html><body><h1>Hello from chorem:// protocol!</h1></body></html>";
     GInputStream *stream = g_memory_input_stream_new_from_data(html, strlen(html), NULL);
 
     // Set the content type and content length

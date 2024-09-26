@@ -8,8 +8,18 @@ pkg_check_modules(WEBKIT2GTK REQUIRED webkit2gtk-4.1)
 pkg_check_modules(LIBARCHIVE REQUIRED libarchive)
 
 include(FetchContent)
-FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz DOWNLOAD_EXTRACT_TIMESTAMP True)
+
+FetchContent_Declare(
+  json
+  URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+  DOWNLOAD_EXTRACT_TIMESTAMP True)
 FetchContent_MakeAvailable(json)
+
+FetchContent_Declare(
+  fmt
+  URL https://github.com/fmtlib/fmt/releases/download/11.0.2/fmt-11.0.2.zip
+  DOWNLOAD_EXTRACT_TIMESTAMP True)
+FetchContent_MakeAvailable(fmt)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -34,6 +44,6 @@ add_executable(${TARGET_NAME} ${SOURCES})
 target_compile_options(${TARGET_NAME} PRIVATE -Wall -Wextra -pedantic)
 
 target_include_directories(${TARGET_NAME} PRIVATE ${WEBKIT2GTK_INCLUDE_DIRS} ${LIBARCHIVE_INCLUDE_DIRS} include)
-target_link_libraries(${TARGET_NAME} ${WEBKIT2GTK_LIBRARIES} ${LIBARCHIVE_LIBRARIES} nlohmann_json::nlohmann_json)
+target_link_libraries(${TARGET_NAME} ${WEBKIT2GTK_LIBRARIES} ${LIBARCHIVE_LIBRARIES} fmt::fmt nlohmann_json::nlohmann_json)
 target_compile_options(${TARGET_NAME} PRIVATE ${WEBKIT2GTK_CFLAGS_OTHER} ${LIBARCHIVE_CFLAGS_OTHER})
 
