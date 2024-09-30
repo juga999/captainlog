@@ -9,20 +9,39 @@ import { createI18n } from 'vue-i18n';
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { 
-    faChevronLeft, faChevronRight,
-    faLocationPin
+    faClock
+} from '@fortawesome/free-regular-svg-icons';
+import {
+    faChevronLeft, faChevronRight, faAnglesRight, faPlus,
+    faAsterisk, faCheck, faEraser,
+    faLocationPin, faDiagramProject
 } from '@fortawesome/free-solid-svg-icons';
 
-import './style.css'
-import App from './App.vue'
+import './style.css';
+import App from './App.vue';
 
-import DayView from './views/DayView.vue'
-//import LoginView from './views/LoginView.vue'
+import DayView from './views/DayView.vue';
 
-library.add(faChevronLeft, faChevronRight, faLocationPin);
+import ProjectsView from './views/ProjectsView.vue';
+import ProjectsListComponent from './views/ProjectsListView.vue';
+import ProjectEditionComponent from './views/ProjectEditionView.vue';
+
+library.add(
+    faClock, faChevronLeft, faChevronRight, faAnglesRight,
+    faPlus, faLocationPin, faDiagramProject, faAsterisk, faCheck, faEraser);
 
 const routes: Array<RouteRecordRaw> = [
-    { path: '/day/:yyyymmdd?', name: 'day', component: DayView },
+    { 
+        path: '/day/:yyyymmdd?', name: 'day', component: DayView
+    },
+    { 
+        path: '/project', component: ProjectsView,
+        children: [
+            { path: '', name: 'project.list', component: ProjectsListComponent },
+            { path: 'new', name: 'project.new', component: ProjectEditionComponent },
+            { path: ':projectId', name: 'project.details', component: ProjectsView }
+        ]
+    },
     {
         path: '/', redirect: _ => {
             const today: string = DateTime.now().toFormat('yyyyMMdd');

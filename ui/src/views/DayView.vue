@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Ref, ref } from 'vue';
+import { Ref, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router'
 
 import { DateTime } from 'luxon';
@@ -10,14 +10,26 @@ const route = useRoute();
 const router = useRouter();
 
 const currentYearMonthDayString: Ref<string> = ref(DateTime.now().toFormat('yyyyMMdd'));
-if (route.params.yyyymmdd) {
-    currentYearMonthDayString.value = route.params.yyyymmdd as string;
-}
 
 function onDaySelected(yearMonthDayString: string) {
     router.push('/day/' + yearMonthDayString);
     currentYearMonthDayString.value = yearMonthDayString;
 }
+
+function onRouteChange(newRoute: typeof route) {
+    if (newRoute.params.yyyymmdd) {
+        const param = route.params.yyyymmdd as string;
+        if (param !== currentYearMonthDayString.value) {
+            currentYearMonthDayString.value = param;
+        }
+    }
+}
+
+watch(route, (newRoute: typeof route) => {
+    onRouteChange(newRoute)
+});
+
+onRouteChange(route);
 
 </script>
 

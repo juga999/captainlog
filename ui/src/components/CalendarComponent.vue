@@ -5,7 +5,7 @@ import { Info, DateTime } from 'luxon';
 
 import { useI18n } from 'vue-i18n';
 
-import componentI18n from './CalendarComponentI18n';
+import componentI18n from '../i18n/CalendarComponentI18n';
 
 const props = defineProps(['yearMonthDay']);
 
@@ -194,7 +194,12 @@ function toShortYearString(year: number): string {
 }
 
 watch(() => props.yearMonthDay, (value) => {
-    selectedDate.value = DateTime.fromISO(value).setLocale(locale);
+    const newDateTime: DateTime = DateTime.fromISO(value).setLocale(locale);
+    if (newDateTime.month !== selectedDate.value.month || newDateTime.year !== selectedDate.value.year) {
+        monthCalendar.value = buildMonthCalendar(newDateTime.year, newDateTime.month);
+        yearCalendar.value = buildYearCalendar(newDateTime.year);        
+    }
+    selectedDate.value = newDateTime;
 });
 
 monthCalendar.value = buildMonthCalendar(selectedDate.value.year, selectedDate.value.month);
@@ -289,11 +294,8 @@ yearCalendar.value = buildYearCalendar(selectedDate.value.year);
 
 <style scoped>
 .cl-calendar-container {
-    --calendar-control-pane-bg-color: #3b78b0;
-    --calendar-control-pane-bg-color--darker: #006ba2;
-    --calendar-control-pane-text-color: white;
     min-width: 342px;
-    max-width: 386px;
+    /*max-width: 386px;*/
 }
 
 .cl-calendar-container button:hover {
@@ -302,11 +304,12 @@ yearCalendar.value = buildYearCalendar(selectedDate.value.year);
 
 .cl-calendar-control-pane {
     height: 3em;
-    background-color: var(--calendar-control-pane-bg-color);
+    background-color: var(--dark-bg-color);
 }
 
 .cl-calendar-control-pane button:hover {
-    filter: brightness(120%);
+    background-color: var(--hover-color);
+    border-color: var(--hover-color);
 }
 
 .cl-calendar-header {
@@ -314,24 +317,18 @@ yearCalendar.value = buildYearCalendar(selectedDate.value.year);
     flex-flow: row nowrap;
     justify-content: space-between;
     align-items: center;
-    border-top-width: 1px;
-    border-top-style: solid;
-    border-top-color: var(--calendar-control-pane-bg-color);
-    border-bottom-width: 1px;
-    border-bottom-style: solid;
-    border-bottom-color: var(--calendar-control-pane-bg-color--darker);
-    border-top-left-radius: 6px;
-    border-top-right-radius: 6px;
+    border-top: 1px solid var(--dark-bg-color);
+    border-bottom: 1px solid var(--less-dark-bg-color);
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
 }
 
 .cl-calendar-header button {
     height: 2em;
-    border-width: 1px;
-    border-style: solid;
-    border-color: var(--calendar-control-pane-bg-color);
+    border: 1px solid var(--dark-bg-color);
     border-radius: 2em;
-    background-color: var(--calendar-control-pane-bg-color);
-    color: var(--calendar-control-pane-text-color);
+    background-color: var(--dark-bg-color);
+    color: var(--primary-text-color);
     font-size: 1.1em;
 }
 
@@ -341,6 +338,7 @@ yearCalendar.value = buildYearCalendar(selectedDate.value.year);
 
 .cl-calendar-header-nav-left button {
     width: 2em;
+    border: 1px solid var(--less-less-dark-bg-color);
 }
 
 .cl-calendar-header-nav-right {
@@ -349,6 +347,7 @@ yearCalendar.value = buildYearCalendar(selectedDate.value.year);
 
 .cl-calendar-header-nav-right button {
     width: 2em;
+    border: 1px solid var(--less-less-dark-bg-color);
 }
 
 .cl-calendar-header-nav-month button {
@@ -357,6 +356,7 @@ yearCalendar.value = buildYearCalendar(selectedDate.value.year);
 }
 
 .cl-calendar-header-nav-month span {
+    font-weight: normal;
     text-transform: capitalize;
 }
 
@@ -366,21 +366,18 @@ yearCalendar.value = buildYearCalendar(selectedDate.value.year);
 }
 
 .cl-calendar-body {
-    --calendar-body-bg-color: white;
-    --calendar-body-item-hover-color: rgb(233, 237, 240);
     --calendar-body-font-size: 1em;
-    background-color: var(--calendar-body-bg-color);
-    border-left-width: 1px;
-    border-left-style: solid;
-    border-left-color: var(--calendar-body-bg-color);
-    border-right-width: 1px;
-    border-right-style: solid;
-    border-right-color: var(--calendar-body-bg-color);
+    background-color: var(--darker-bg-color);
+    border-left: 1px solid var(--dark-bg-color);
+    border-right: 1px solid var(--dark-bg-color);
+    
 }
 
 .cl-calendar-body table {
     width: 100%;
-    border-spacing: 0px;
+    border-spacing: 4px;
+    background: linear-gradient(318deg, var(--less-less-dark-bg-color) 0%, var(--less-dark-bg-color) 100%);
+    border: 1px solid var(--less-less-dark-bg-color);
 }
 
 .cl-calendar-body-year {
@@ -390,13 +387,21 @@ yearCalendar.value = buildYearCalendar(selectedDate.value.year);
 
 .cl-calender-body-clickable-cell button {
     font-size: var(--calendar-body-font-size);
-    color: #003f7d;
-    background-color: var(--calendar-body-bg-color);
-    border: 1px solid var(--calendar-body-bg-color);
+    color: var(--primary-text-color);
+    background-color: transparent;
+    border: none;
+    font-weight: bold;
+}
+
+.is-selected-calendar-item button {
+    color: var(--selected-text-color);
+    font-weight: bold;
+    background-color: var(--selected-bg-color);
+    border: 1px solid var(--selected-bg-color);
 }
 
 .cl-calendar-day-name-cell {
-    color: #3b78b0;
+    color: var(--secondary-text-color);
 }
 
 .cl-calendar-week-number-cell {
@@ -404,7 +409,7 @@ yearCalendar.value = buildYearCalendar(selectedDate.value.year);
     text-align: center;
     font-size: 0.95em;
     font-weight: bold;
-    color: #6c6c6c;
+    color: var(--secondary-aux-text-color);
 }
 
 .cl-calendar-day-cell {
@@ -419,21 +424,11 @@ yearCalendar.value = buildYearCalendar(selectedDate.value.year);
     padding-bottom: 0.4em;
 }
 
-.cl-calendar-day-cell.is-next-or-previous-month {
-    background-color: var(--calendar-body-item-hover-color);
-    border-top-width: 0.8em;
-    border-top-style: solid;
-    border-top-color: var(--calendar-body-bg-color);
-    border-bottom-width: 0.8em;
-    border-bottom-style: solid;
-    border-bottom-color: var(--calendar-body-bg-color);
+/*.cl-calendar-day-cell.is-next-or-previous-month {
 }
 
 .cl-calendar-day-cell.is-next-or-previous-month:last-of-type {
-    border-right-width: 0.8em;
-    border-right-style: solid;
-    border-right-color: var(--calendar-body-bg-color);
-}
+}*/
 
 .cl-calendar-day-cell button {
     width: 2.2em;
@@ -454,36 +449,23 @@ yearCalendar.value = buildYearCalendar(selectedDate.value.year);
 }
 
 .cl-calendar-day-cell.is-selected-calendar-item button {
-    color: var(--calendar-body-item-hover-color);
-    font-weight: bold;
-    border: 1px solid #006ba2;
     border-radius: 50%;
-    background-color: #006ba2;
-    box-shadow: 0 0 1px 0 #006ba2 inset, 0 0 1px 0 #006ba2;
 }
 
 .cl-calendar-day-cell:not(.is-selected-calendar-item) button:hover {
-    border: 1px solid var(--calendar-body-item-hover-color);
+    border: 1px solid var(--hover-color);
     border-radius: 50%;
-    background-color: var(--calendar-body-item-hover-color);
-    box-shadow: 0 0 1px 0 var(--calendar-body-item-hover-color) inset, 0 0 1px 0 var(--calendar-body-item-hover-color);
+    background-color: var(--hover-color);
 }
 
 .cl-calendar-month-cell.is-selected-calendar-item button {
-    cursor: pointer;
-    color: var(--calendar-body-item-hover-color);
-    font-weight: bold;
-    border: 1px solid #006ba2;
     border-radius: 0.8em;
-    background-color: #006ba2;
-    box-shadow: 0 0 1px 0 #006ba2 inset, 0 0 1px 0 #006ba2;
 }
 
 .cl-calendar-month-cell:not(.is-selected-calendar-item) button:hover {
-    border: 1px solid var(--calendar-body-item-hover-color);
+    border: 1px solid var(--hover-color);
     border-radius: 0.8em;
-    background-color: var(--calendar-body-item-hover-color);
-    box-shadow: 0 0 1px 0 var(--calendar-body-item-hover-color) inset, 0 0 1px 0 var(--calendar-body-item-hover-color);
+    background-color: var(--hover-color);
 }
 
 .cl-calendar-footer {
@@ -491,28 +473,22 @@ yearCalendar.value = buildYearCalendar(selectedDate.value.year);
     flex-flow: row nowrap;
     justify-content: center;
     align-items: center;
-    border-top-width: 1px;
-    border-top-style: solid;
-    border-top-color: var(--calendar-control-pane-bg-color--darker);
-    border-bottom-width: 1px;
-    border-bottom-style: solid;
-    border-bottom-color: var(--calendar-control-pane-bg-color);
-    border-bottom-left-radius: 6px;
-    border-bottom-right-radius: 6px;
+    border-top: 1px solid var(--less-dark-bg-color);
+    border-bottom: 1px solid var(--dark-bg-color);
+    border-bottom-left-radius: 16px;
+    border-bottom-right-radius: 16px;
 }
 
 .cl-calendar-footer button {
     height: 2em;
     padding-left: 1em;
     padding-right: 1em;
-    border-width: 1px;
-    border-style: solid;
-    border-color: var(--calendar-control-pane-bg-color);
+    border: 1px solid var(--dark-bg-color);
     border-radius: 2em;
-    background-color: var(--calendar-control-pane-bg-color);
-    color: var(--calendar-control-pane-text-color);
+    background-color: var(--dark-bg-color);
+    color: var(--primary-text-color);
     font-size: 1em;
-    font-weight: bold;
+    font-weight: normal;
 }
 
 @media screen and (min-width: 362px) {

@@ -7,5 +7,23 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  --darker-bg-color: #283243;
+  --dark-bg-color: #354156;
+  --less-dark-bg-color: #404c62;
+  --less-less-dark-bg-color: #505f7b;
+  --selected-bg-color: #5fe9dc;
+  --hover-color: #a744db;
+  --danger-color: #c45050;
+
+  --primary-text-color: white;
+  --selected-text-color: black;
+  --secondary-text-color: #6dccff;
+  --secondary-aux-text-color: #f5c57d;
+  --valid-text-color: var(--selected-bg-color);
 }
 
+body {
+  margin: 0;
+  background: linear-gradient(318deg, #a48aae 0%, var(--less-less-dark-bg-color) 100%);
+}
